@@ -56,7 +56,7 @@ jobs:
         env:
           QT_QPA_PLATFORM: offscreen
         run: |
-          $testOutput = & python -m unittest discover -v 2>&1
+          $testOutput = & python -m unittest discover -q 2>&1
           $testExitCode = $LASTEXITCODE
           $testOutput | ForEach-Object { Write-Host $_ }
           if ($testExitCode -ne 0) {

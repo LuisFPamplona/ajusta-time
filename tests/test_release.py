@@ -148,19 +148,27 @@ class ReleaseReadinessTestCase(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temporary_directory:
             log_directory = Path(temporary_directory) / "logs"
             logger = configure_logging(log_directory)
-            logger.info("Inicialização de teste: férias e funcionários.")
-            for handler in logger.handlers:
-                handler.flush()
-            content = (log_directory / "ajusta-time.log").read_text(encoding="utf-8")
-            self.assertIn("férias e funcionários", content)
-            rotating_handlers = [
-                handler
-                for handler in logger.handlers
-                if isinstance(handler, logging.handlers.RotatingFileHandler)
-            ]
-            self.assertEqual(len(rotating_handlers), 1)
-            self.assertEqual(rotating_handlers[0].maxBytes, 1_000_000)
-            self.assertEqual(rotating_handlers[0].backupCount, 3)
+            try:
+                logger.info("Inicialização de teste: férias e funcionários.")
+                for handler in logger.handlers:
+                    handler.flush()
+                content = (log_directory / "ajusta-time.log").read_text(
+                    encoding="utf-8"
+                )
+                self.assertIn("férias e funcionários", content)
+                rotating_handlers = [
+                    handler
+                    for handler in logger.handlers
+                    if isinstance(handler, logging.handlers.RotatingFileHandler)
+                ]
+                self.assertEqual(len(rotating_handlers), 1)
+                self.assertEqual(rotating_handlers[0].maxBytes, 1_000_000)
+                self.assertEqual(rotating_handlers[0].backupCount, 3)
+            finally:
+                for handler in list(logger.handlers):
+                    if isinstance(handler, logging.handlers.RotatingFileHandler):
+                        logger.removeHandler(handler)
+                        handler.close()
 
     def test_complete_business_flow_persists_after_reopening(self) -> None:
         with tempfile.TemporaryDirectory() as temporary_directory:

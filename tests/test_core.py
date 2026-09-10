@@ -4,6 +4,7 @@ import json
 import sqlite3
 import tempfile
 import unittest
+from contextlib import closing
 from datetime import date
 from pathlib import Path
 
@@ -62,7 +63,7 @@ class CoreTestCase(unittest.TestCase):
 
     def test_existing_database_is_migrated_without_losing_data(self) -> None:
         legacy_path = Path(self.temp_directory.name) / "legacy.db"
-        with sqlite3.connect(legacy_path) as connection:
+        with closing(sqlite3.connect(legacy_path)) as connection, connection:
             connection.executescript(
                 """
                 CREATE TABLE employees (id INTEGER PRIMARY KEY, name TEXT NOT NULL);

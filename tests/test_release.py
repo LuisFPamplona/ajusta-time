@@ -5,6 +5,7 @@ import os
 import sqlite3
 import tempfile
 import unittest
+from contextlib import closing
 from datetime import date
 from pathlib import Path
 from unittest.mock import patch
@@ -98,7 +99,7 @@ class ReleaseReadinessTestCase(unittest.TestCase):
                 )
             )
 
-            with sqlite3.connect(destination) as connection:
+            with closing(sqlite3.connect(destination)) as connection, connection:
                 connection.execute(
                     "INSERT INTO employees(name) VALUES (?)", ("Somente destino",)
                 )
@@ -229,7 +230,7 @@ class ReleaseReadinessTestCase(unittest.TestCase):
             self.assertEqual(len(reopened_leaves), 2)
             self.assertEqual(reopened_settings["company_name"], "Empresa Teste")
             self.assertTrue(json_path.is_file())
-            with sqlite3.connect(sqlite_path) as connection:
+            with closing(sqlite3.connect(sqlite_path)) as connection:
                 self.assertEqual(
                     connection.execute("PRAGMA integrity_check").fetchone()[0], "ok"
                 )

@@ -10,10 +10,14 @@ from pathlib import Path
 
 from app.database.connection import Database
 from app.database.repositories.employee_repository import (
+    Employee,
     EmployeeHasScheduleError,
     EmployeeRepository,
 )
-from app.database.repositories.schedule_repository import ScheduleRepository
+from app.database.repositories.schedule_repository import (
+    ScheduleEntry,
+    ScheduleRepository,
+)
 from app.database.schema import initialize_database
 from app.services.backup_service import BackupService, BackupValidationError
 from app.services.employee_service import EmployeeService
@@ -210,6 +214,69 @@ class CoreTestCase(unittest.TestCase):
         self.assertEqual(by_day[7], "DAY_OFF")
         for day, status in statuses.items():
             self.assertEqual(by_day[day], status)
+
+    def test_daily_summary_counts_each_unavailable_status(self) -> None:
+        employees = [Employee(index, f"Funcionário {index}") for index in range(1, 9)]
+        day = date(2026, 9, 15)
+
+        all_working = self.schedule.get_month_daily_summary(
+            2026, 9, employees, []
+        )[15]
+        self.assertEqual(all_working.working, 8)
+        self.assertEqual(all_working.unavailable, 0)
+
+        entries = [
+            ScheduleEntry(1, day, "DAY_OFF"),
+            ScheduleEntry(2, day, "DAY_OFF"),
+            ScheduleEntry(3, day, "VACATION"),
+            ScheduleEntry(4, day, "MEDICAL_LEAVE"),
+        ]
+        summary = self.schedule.get_month_daily_summary(
+            2026, 9, employees, entries
+        )[15]
+        self.assertEqual(summary.working, 4)
+        self.assertEqual(summary.day_off, 2)
+        self.assertEqual(summary.vacation, 1)
+        self.assertEqual(summary.medical_leave, 1)
+        self.assertEqual(summary.absence, 0)
+
+    def test_daily_summary_counts_absence_but_not_work_override(self) -> None:
+        employees = [Employee(index, f"Funcionário {index}") for index in range(1, 9)]
+        day = date(2026, 9, 15)
+
+        absence = self.schedule.get_month_daily_summary(
+            2026, 9, employees, [ScheduleEntry(1, day, "ABSENCE")]
+        )[15]
+        self.assertEqual(absence.working, 7)
+        self.assertEqual(absence.absence, 1)
+
+        override = self.schedule.get_month_daily_summary(
+            2026, 9, employees, [ScheduleEntry(1, day, "WORK_OVERRIDE")]
+        )[15]
+        self.assertEqual(override.working, 8)
+        self.assertEqual(override.unavailable, 0)
+
+    def test_daily_summary_handles_default_day_off_and_its_override(self) -> None:
+        employees = [Employee(index, f"Funcionário {index}") for index in range(1, 9)]
+        day = date(2026, 9, 14)
+
+        default_day_off = self.schedule.get_month_daily_summary(
+            2026,
+            9,
+            employees,
+            [ScheduleEntry(1, day, "DAY_OFF", source="DEFAULT")],
+        )[14]
+        self.assertEqual(default_day_off.working, 7)
+        self.assertEqual(default_day_off.day_off, 1)
+
+        override = self.schedule.get_month_daily_summary(
+            2026,
+            9,
+            employees,
+            [ScheduleEntry(1, day, "WORK_OVERRIDE")],
+        )[14]
+        self.assertEqual(override.working, 8)
+        self.assertEqual(override.day_off, 0)
 
     def test_employee_with_schedule_cannot_be_deleted(self) -> None:
         employee = self.employees.list_employees()[0]

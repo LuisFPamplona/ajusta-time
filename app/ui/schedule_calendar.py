@@ -15,6 +15,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from app.services.schedule_service import DailyScheduleSummary
 from app.ui.icons import line_icon
 from app.ui.theme import COLORS
 
@@ -88,7 +89,8 @@ class CalendarDayWidget(QFrame):
         self,
         displayed_date: date,
         current_month: bool,
-        day_off_count: int = 0,
+        working_count: int = 0,
+        unavailable_count: int = 0,
         is_maximum: bool = False,
         tooltip: str = "",
     ) -> None:
@@ -101,7 +103,7 @@ class CalendarDayWidget(QFrame):
             else "maximum"
             if is_maximum
             else "active"
-            if day_off_count
+            if unavailable_count
             else "empty"
         )
         self.setObjectName("calendarDay")
@@ -119,6 +121,8 @@ class CalendarDayWidget(QFrame):
         day_label = QLabel(str(displayed_date.day))
         day_label.setObjectName("dayNumber")
         day_label.setProperty("external", not current_month)
+        if tooltip:
+            day_label.setToolTip(tooltip)
 
         layout = QVBoxLayout(self)
         layout.setContentsMargins(10, 7, 10, 8)
@@ -126,11 +130,14 @@ class CalendarDayWidget(QFrame):
         layout.addWidget(day_label, 0, Qt.AlignmentFlag.AlignLeft)
         layout.addStretch(1)
         if current_month:
-            marker = "●  " if day_off_count else ""
-            count_label = QLabel(f"{marker}{day_off_count} de folga")
+            marker = "●  " if unavailable_count else ""
+            employee_word = "funcionário" if working_count == 1 else "funcionários"
+            count_label = QLabel(f"{marker}{working_count} {employee_word}")
             count_label.setObjectName("countPill")
             count_label.setProperty("state", state)
             count_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+            if tooltip:
+                count_label.setToolTip(tooltip)
             count_label.setSizePolicy(
                 QSizePolicy.Policy.Maximum, QSizePolicy.Policy.Fixed
             )
@@ -176,7 +183,7 @@ class ScheduleCalendarWidget(QFrame):
         self,
         year: int,
         month: int,
-        day_off_names: dict[int, list[str]],
+        daily_summaries: dict[int, DailyScheduleSummary],
         maximum_day: int | None,
         month_name: str,
     ) -> None:
@@ -194,20 +201,30 @@ class ScheduleCalendarWidget(QFrame):
             self.grid.setRowStretch(row, 1)
             for column, displayed_date in enumerate(week):
                 current_month = displayed_date.month == month
-                names = (
-                    day_off_names.get(displayed_date.day, []) if current_month else []
+                summary = (
+                    daily_summaries.get(displayed_date.day) if current_month else None
                 )
                 tooltip = ""
-                if names:
-                    tooltip = (
-                        f"{displayed_date.day} de {month_name.lower()}\n\n"
-                        + "\n".join(names)
-                    )
+                if summary is not None:
+                    lines = [
+                        f"{displayed_date.day} de {month_name.lower()} de {year}",
+                        "",
+                        f"Folga: {summary.day_off}",
+                        f"Férias: {summary.vacation}",
+                        f"Atestado: {summary.medical_leave}",
+                    ]
+                    if summary.absence:
+                        lines.append(f"Falta: {summary.absence}")
+                    tooltip = "\n".join(lines)
                 day_widget = CalendarDayWidget(
                     displayed_date,
                     current_month,
-                    len(names),
-                    current_month and displayed_date.day == maximum_day and bool(names),
+                    summary.working if summary is not None else 0,
+                    summary.unavailable if summary is not None else 0,
+                    current_month
+                    and displayed_date.day == maximum_day
+                    and summary is not None
+                    and bool(summary.day_off),
                     tooltip,
                 )
                 day_widget.clicked.connect(self.day_clicked.emit)

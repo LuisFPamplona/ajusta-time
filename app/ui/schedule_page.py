@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import calendar
 import logging
 from datetime import date, datetime
 
@@ -69,7 +68,7 @@ class SchedulePage(QWidget):
         title = QLabel("Escala mensal")
         title.setObjectName("pageTitle")
         subtitle = QLabel(
-            "Visualize quantos funcionários estão de folga em cada dia do mês."
+            "Visualize quantos funcionários estão trabalhando em cada dia do mês."
         )
         subtitle.setObjectName("pageSubtitle")
         heading = QVBoxLayout()
@@ -142,7 +141,7 @@ class SchedulePage(QWidget):
 
         count_legend = QLabel(
             f'<span style="color:{COLORS.primary}">●</span>&nbsp; '
-            "1 ou mais de folga"
+            "1 ou mais indisponíveis"
             f'&nbsp;&nbsp;&nbsp;&nbsp; <span style="color:{COLORS.danger}">●</span>'
             "&nbsp; "
             "Maior número de folgas no mês"
@@ -177,7 +176,6 @@ class SchedulePage(QWidget):
 
     def reload(self) -> None:
         year, month = self.selected_year, self.selected_month
-        days_in_month = calendar.monthrange(year, month)[1]
         self._employees = self.employee_service.list_employees()
         entry_list = self.schedule_service.get_month_schedule(
             year, month, self._employees
@@ -189,20 +187,19 @@ class SchedulePage(QWidget):
             (entry.employee_id, entry.date.day): entry for entry in entry_list
         }
 
-        employee_names = {employee.id: employee.name for employee in self._employees}
-        day_off_names = {day: [] for day in range(1, days_in_month + 1)}
-        for entry in entry_list:
-            if entry.status == "DAY_OFF" and entry.employee_id in employee_names:
-                day_off_names[entry.date.day].append(employee_names[entry.employee_id])
-        for names in day_off_names.values():
-            names.sort(key=str.casefold)
+        daily_summaries = self.schedule_service.get_month_daily_summary(
+            year, month, self._employees, entry_list
+        )
+        day_off_counts = {
+            day: summary.day_off for day, summary in daily_summaries.items()
+        }
 
-        total_day_offs = sum(len(names) for names in day_off_names.values())
+        total_day_offs = sum(day_off_counts.values())
         maximum_day = None
         maximum_count = 0
         if total_day_offs:
-            maximum_day = max(day_off_names, key=lambda day: len(day_off_names[day]))
-            maximum_count = len(day_off_names[maximum_day])
+            maximum_day = max(day_off_counts, key=day_off_counts.get)
+            maximum_count = day_off_counts[maximum_day]
 
         day_off_word = "folga" if total_day_offs == 1 else "folgas"
         self.total_card.set_content(str(total_day_offs), day_off_word)
@@ -220,7 +217,7 @@ class SchedulePage(QWidget):
         self.calendar.set_month(
             year,
             month,
-            day_off_names,
+            daily_summaries,
             maximum_day,
             MONTH_NAMES[month - 1],
         )

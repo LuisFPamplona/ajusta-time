@@ -12,7 +12,7 @@ from pathlib import Path
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
 from PySide6.QtCore import Qt
-from PySide6.QtWidgets import QApplication, QTabWidget
+from PySide6.QtWidgets import QApplication, QLabel, QTabWidget
 
 from app.database.connection import Database
 from app.database.repositories.employee_repository import (
@@ -305,6 +305,23 @@ class LeaveTestCase(unittest.TestCase):
         )
         page._set_period(2026, 9)
         self.assertEqual(page.total_card.value_label.text(), "1")
+        day_widget = page.calendar.day_widgets[date(2026, 9, 15)]
+        count_label = day_widget.findChild(QLabel, "countPill")
+        self.assertIsNotNone(count_label)
+        self.assertIn("1 funcionário", count_label.text())
+        self.assertEqual(
+            day_widget.toolTip(),
+            "15 de setembro de 2026\n\nFolga: 1\nFérias: 1\nAtestado: 0",
+        )
+
+        no_absence_widget = page.calendar.day_widgets[date(2026, 9, 16)]
+        no_absence_label = no_absence_widget.findChild(QLabel, "countPill")
+        self.assertIsNotNone(no_absence_label)
+        self.assertEqual(no_absence_label.text(), "3 funcionários")
+        self.assertEqual(
+            no_absence_widget.toolTip(),
+            "16 de setembro de 2026\n\nFolga: 0\nFérias: 0\nAtestado: 0",
+        )
         self.assertEqual(STATUS_LABELS["VACATION"], "FE")
         self.assertEqual(STATUS_LABELS["MEDICAL_LEAVE"], "AT")
         self.assertEqual(STATUS_LABELS["WORK_OVERRIDE"], "")

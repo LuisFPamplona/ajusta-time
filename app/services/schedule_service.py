@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import calendar
+from dataclasses import dataclass
 from datetime import date, datetime
 
 from app.database.repositories.employee_repository import Employee
@@ -25,6 +26,23 @@ STATUS_NAMES = {
     "ABSENCE": "Falta",
     "WORK_OVERRIDE": "Trabalho normal",
 }
+
+NOT_WORKING_STATUSES = frozenset(
+    {"DAY_OFF", "VACATION", "MEDICAL_LEAVE", "ABSENCE"}
+)
+
+
+@dataclass(frozen=True, slots=True)
+class DailyScheduleSummary:
+    working: int
+    day_off: int
+    vacation: int
+    medical_leave: int
+    absence: int
+
+    @property
+    def unavailable(self) -> int:
+        return self.day_off + self.vacation + self.medical_leave + self.absence
 
 
 class ScheduleService:
@@ -93,6 +111,48 @@ class ScheduleService:
         return sorted(
             [*entries, *generated], key=lambda entry: (entry.employee_id, entry.date)
         )
+
+    def get_month_daily_summary(
+        self,
+        year: int,
+        month: int,
+        employees: list[Employee],
+        entries: list[ScheduleEntry] | None = None,
+    ) -> dict[int, DailyScheduleSummary]:
+        entry_list = (
+            entries
+            if entries is not None
+            else self.get_month_schedule(year, month, employees)
+        )
+        employee_ids = {employee.id for employee in employees}
+        statuses_by_day: dict[int, dict[int, str]] = {}
+        for entry in entry_list:
+            if (
+                entry.employee_id in employee_ids
+                and entry.date.year == year
+                and entry.date.month == month
+            ):
+                statuses_by_day.setdefault(entry.date.day, {})[entry.employee_id] = (
+                    entry.status
+                )
+
+        total_employees = len(employee_ids)
+        summaries: dict[int, DailyScheduleSummary] = {}
+        for day in range(1, calendar.monthrange(year, month)[1] + 1):
+            statuses = statuses_by_day.get(day, {}).values()
+            day_off = sum(status == "DAY_OFF" for status in statuses)
+            vacation = sum(status == "VACATION" for status in statuses)
+            medical_leave = sum(status == "MEDICAL_LEAVE" for status in statuses)
+            absence = sum(status == "ABSENCE" for status in statuses)
+            not_working = sum(status in NOT_WORKING_STATUSES for status in statuses)
+            summaries[day] = DailyScheduleSummary(
+                working=max(0, total_employees - not_working),
+                day_off=day_off,
+                vacation=vacation,
+                medical_leave=medical_leave,
+                absence=absence,
+            )
+        return summaries
 
     def set_status(
         self, employee_id: int, year: int, month: int, day: int, status: str | None

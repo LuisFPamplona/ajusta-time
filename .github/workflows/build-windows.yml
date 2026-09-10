@@ -1,0 +1,97 @@
+name: Build Windows
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+    paths:
+      - ".github/workflows/build-windows.yml"
+      - "AjustaTime.spec"
+      - "app/**"
+      - "assets/**"
+      - "main.py"
+      - "requirements*.txt"
+      - "scripts/build_windows.ps1"
+
+permissions:
+  contents: read
+
+jobs:
+  build-windows:
+    name: Build ONEDIR
+    runs-on: windows-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Configurar Python
+        uses: actions/setup-python@v7
+        with:
+          python-version: "3.14"
+          cache: pip
+          cache-dependency-path: |
+            requirements.txt
+            requirements-dev.txt
+
+      - name: Instalar dependências
+        shell: pwsh
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r requirements.txt
+          python -m pip install -r requirements-dev.txt
+
+      - name: Exibir versões
+        shell: pwsh
+        run: |
+          python --version
+          python -m pip --version
+          python -m PyInstaller --version
+
+      - name: Executar testes rápidos
+        shell: pwsh
+        env:
+          QT_QPA_PLATFORM: offscreen
+        run: python -m unittest discover -v
+
+      - name: Gerar build Windows
+        shell: pwsh
+        run: ./scripts/build_windows.ps1
+
+      - name: Validar bundle
+        shell: pwsh
+        run: |
+          $bundle = "dist\Ajusta Time"
+          $executable = Join-Path $bundle "Ajusta Time.exe"
+          if (-not (Test-Path -LiteralPath $bundle -PathType Container)) {
+            throw "Pasta ONEDIR não encontrada: $bundle"
+          }
+          if (-not (Test-Path -LiteralPath $executable -PathType Leaf)) {
+            throw "Executável não encontrado: $executable"
+          }
+          if ((Get-Item -LiteralPath $executable).Length -le 0) {
+            throw "O executável gerado está vazio."
+          }
+          $files = @(Get-ChildItem -LiteralPath $bundle -Recurse -File)
+          if ($files.Count -le 1) {
+            throw "O bundle ONEDIR está incompleto."
+          }
+          Get-FileHash -LiteralPath $executable -Algorithm SHA256
+          Write-Host "Arquivos encontrados no bundle: $($files.Count)"
+
+      - name: Obter versão da aplicação
+        id: app-version
+        shell: pwsh
+        run: |
+          $version = python -c "from app.version import APP_VERSION; print(APP_VERSION)"
+          "version=$version" >> $env:GITHUB_OUTPUT
+
+      - name: Publicar artifact ONEDIR
+        uses: actions/upload-artifact@v7
+        with:
+          name: AjustaTime-Windows-${{ steps.app-version.outputs.version }}
+          path: dist/
+          if-no-files-found: error
+          retention-days: 14

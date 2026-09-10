@@ -113,6 +113,32 @@ menus, listas suspensas, dicas e outras janelas auxiliares do Qt.
 python -m unittest discover -v
 ```
 
-## Distribuição Windows
+## Build Windows via GitHub Actions
 
-A etapa de empacotamento será realizada posteriormente. Esta versão ainda não inclui executável, instalador ou configuração de distribuição.
+O build de validação para Windows é gerado em formato ONEDIR pelo workflow
+**Build Windows**, sem incluir banco, logs ou outros dados do usuário.
+
+Para gerar e baixar o build:
+
+1. Abra o repositório no GitHub e acesse **Actions**.
+2. Selecione **Build Windows**.
+3. Clique em **Run workflow** e confirme a execução na branch `main`.
+4. Aguarde a conclusão do workflow.
+5. Na execução concluída, baixe o artifact **AjustaTime-Windows-1.0.0**.
+
+O arquivo baixado contém a pasta ONEDIR `Ajusta Time/`, incluindo o executável
+`Ajusta Time.exe` e suas dependências. Esse artifact é um build de validação e
+ainda não constitui uma Release oficial ou um instalador.
+
+Em um ambiente Windows local já preparado, o mesmo build pode ser reproduzido
+com:
+
+```powershell
+python -m pip install -r requirements.txt
+python -m pip install -r requirements-dev.txt
+.\scripts\build_windows.ps1
+```
+
+O resultado é gravado em `dist/Ajusta Time/Ajusta Time.exe`. Os dados continuam
+armazenados separadamente em `%LOCALAPPDATA%\AjustaTime\`, nunca dentro da pasta
+de distribuição.

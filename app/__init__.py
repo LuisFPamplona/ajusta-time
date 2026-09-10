@@ -1,0 +1,1 @@
+"""Ajusta Time desktop application."""

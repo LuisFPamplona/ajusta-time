@@ -2,9 +2,9 @@ from __future__ import annotations
 
 from PySide6.QtCore import Qt, Signal
 from PySide6.QtWidgets import (
+    QDialog,
     QHBoxLayout,
     QHeaderView,
-    QInputDialog,
     QLabel,
     QMessageBox,
     QPushButton,
@@ -16,6 +16,7 @@ from PySide6.QtWidgets import (
 
 from app.database.repositories.employee_repository import EmployeeHasScheduleError
 from app.services.employee_service import EmployeeService
+from app.ui.employee_dialog import DAY_OFF_NAMES, EmployeeDialog
 
 
 class EmployeesPage(QWidget):
@@ -30,8 +31,8 @@ class EmployeesPage(QWidget):
         subtitle = QLabel("Cadastre as pessoas que aparecerão na escala mensal.")
         subtitle.setObjectName("pageSubtitle")
 
-        self.table = QTableWidget(0, 2)
-        self.table.setHorizontalHeaderLabels(["ID", "Nome"])
+        self.table = QTableWidget(0, 3)
+        self.table.setHorizontalHeaderLabels(["ID", "Nome", "Folga padrão"])
         self.table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
         self.table.setSelectionMode(QTableWidget.SelectionMode.SingleSelection)
         self.table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
@@ -41,6 +42,9 @@ class EmployeesPage(QWidget):
         )
         self.table.horizontalHeader().setSectionResizeMode(
             1, QHeaderView.ResizeMode.Stretch
+        )
+        self.table.horizontalHeader().setSectionResizeMode(
+            2, QHeaderView.ResizeMode.ResizeToContents
         )
         self.table.doubleClicked.connect(self.edit_selected)
 
@@ -73,17 +77,18 @@ class EmployeesPage(QWidget):
             id_item = QTableWidgetItem(str(employee.id))
             id_item.setData(Qt.ItemDataRole.UserRole, employee.id)
             name_item = QTableWidgetItem(employee.name)
+            name_item.setData(Qt.ItemDataRole.UserRole, employee.default_day_off)
+            day_off_item = QTableWidgetItem(DAY_OFF_NAMES[employee.default_day_off])
             self.table.setItem(row, 0, id_item)
             self.table.setItem(row, 1, name_item)
+            self.table.setItem(row, 2, day_off_item)
 
     def add_employee(self) -> None:
-        name, accepted = QInputDialog.getText(
-            self, "Adicionar funcionário", "Nome completo:"
-        )
-        if not accepted:
+        dialog = EmployeeDialog("Adicionar funcionário", parent=self)
+        if dialog.exec() != QDialog.DialogCode.Accepted:
             return
         try:
-            self.service.add_employee(name)
+            self.service.add_employee(dialog.employee_name(), dialog.default_day_off())
         except ValueError as error:
             QMessageBox.warning(self, "Funcionários", str(error))
             return
@@ -97,14 +102,21 @@ class EmployeesPage(QWidget):
                 self, "Funcionários", "Selecione um funcionário para editar."
             )
             return
-        employee_id, current_name = selected
-        name, accepted = QInputDialog.getText(
-            self, "Editar funcionário", "Nome completo:", text=current_name
+        employee_id, current_name, default_day_off = selected
+        dialog = EmployeeDialog(
+            "Editar funcionário",
+            current_name,
+            default_day_off,
+            self,
         )
-        if not accepted:
+        if dialog.exec() != QDialog.DialogCode.Accepted:
             return
         try:
-            self.service.update_employee(employee_id, name)
+            self.service.update_employee(
+                employee_id,
+                dialog.employee_name(),
+                dialog.default_day_off(),
+            )
         except (ValueError, LookupError) as error:
             QMessageBox.warning(self, "Funcionários", str(error))
             return
@@ -118,7 +130,7 @@ class EmployeesPage(QWidget):
                 self, "Funcionários", "Selecione um funcionário para excluir."
             )
             return
-        employee_id, name = selected
+        employee_id, name, _ = selected
         answer = QMessageBox.question(
             self,
             "Excluir funcionário",
@@ -139,10 +151,13 @@ class EmployeesPage(QWidget):
         self.reload()
         self.employees_changed.emit()
 
-    def _selected_employee(self) -> tuple[int, str] | None:
+    def _selected_employee(self) -> tuple[int, str, int | None] | None:
         row = self.table.currentRow()
         if row < 0:
             return None
-        return int(
-            self.table.item(row, 0).data(Qt.ItemDataRole.UserRole)
-        ), self.table.item(row, 1).text()
+        default_day_off = self.table.item(row, 1).data(Qt.ItemDataRole.UserRole)
+        return (
+            int(self.table.item(row, 0).data(Qt.ItemDataRole.UserRole)),
+            self.table.item(row, 1).text(),
+            int(default_day_off) if default_day_off is not None else None,
+        )

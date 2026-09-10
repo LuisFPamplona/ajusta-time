@@ -6,7 +6,10 @@ from datetime import date
 
 from app.database.connection import Database
 
-VALID_STATUSES = frozenset({"DAY_OFF", "VACATION", "MEDICAL_LEAVE", "ABSENCE"})
+VALID_STATUSES = frozenset(
+    {"DAY_OFF", "VACATION", "MEDICAL_LEAVE", "ABSENCE", "WORK_OVERRIDE"}
+)
+VALID_SOURCES = frozenset({"MANUAL", "DEFAULT"})
 
 
 @dataclass(frozen=True, slots=True)
@@ -15,6 +18,7 @@ class ScheduleEntry:
     date: date
     status: str
     notes: str | None = None
+    source: str = "MANUAL"
 
 
 class ScheduleRepository:
@@ -27,7 +31,7 @@ class ScheduleRepository:
         with self.database.connection() as connection:
             rows = connection.execute(
                 """
-                SELECT employee_id, date, status, notes
+                SELECT employee_id, date, status, notes, source
                 FROM schedule_entries
                 WHERE date BETWEEN ? AND ?
                 ORDER BY employee_id, date
@@ -40,6 +44,7 @@ class ScheduleRepository:
                 date=date.fromisoformat(row["date"]),
                 status=row["status"],
                 notes=row["notes"],
+                source=row["source"],
             )
             for row in rows
         ]
@@ -50,6 +55,7 @@ class ScheduleRepository:
         entry_date: date,
         status: str | None,
         notes: str | None = None,
+        source: str = "MANUAL",
     ) -> None:
         with self.database.transaction() as connection:
             if status is None:
@@ -60,58 +66,109 @@ class ScheduleRepository:
                 return
             if status not in VALID_STATUSES:
                 raise ValueError("Status de escala inválido.")
+            if source not in VALID_SOURCES:
+                raise ValueError("Origem de escala inválida.")
             connection.execute(
                 """
-                INSERT INTO schedule_entries(employee_id, date, status, notes)
-                VALUES (?, ?, ?, ?)
+                INSERT INTO schedule_entries(employee_id, date, status, source, notes)
+                VALUES (?, ?, ?, ?, ?)
                 ON CONFLICT(employee_id, date)
-                DO UPDATE SET status = excluded.status, notes = excluded.notes
+                DO UPDATE SET
+                    status = excluded.status,
+                    source = excluded.source,
+                    notes = excluded.notes
                 """,
-                (employee_id, entry_date.isoformat(), status, notes),
+                (employee_id, entry_date.isoformat(), status, source, notes),
+            )
+
+    def add_default_entries(self, entries: list[ScheduleEntry]) -> None:
+        if not entries:
+            return
+        with self.database.transaction() as connection:
+            connection.executemany(
+                """
+                INSERT OR IGNORE INTO schedule_entries(
+                    employee_id, date, status, source, notes
+                )
+                VALUES (?, ?, 'DAY_OFF', 'DEFAULT', NULL)
+                """,
+                ((entry.employee_id, entry.date.isoformat()) for entry in entries),
             )
 
     def set_day_off_employees(
         self, entry_date: date, selected_employee_ids: set[int]
     ) -> set[int]:
-        """Replace only DAY_OFF entries for a date, preserving every other status."""
+        """Apply manual choices without overriding vacation, leave or absence."""
         date_text = entry_date.isoformat()
         with self.database.transaction() as connection:
             rows = connection.execute(
                 """
-                SELECT employee_id, status
-                FROM schedule_entries
-                WHERE date = ?
+                SELECT
+                    employees.id AS employee_id,
+                    employees.default_day_off,
+                    schedule_entries.status,
+                    schedule_entries.source
+                FROM employees
+                LEFT JOIN schedule_entries
+                  ON schedule_entries.employee_id = employees.id
+                 AND schedule_entries.date = ?
                 """,
                 (date_text,),
             ).fetchall()
-            existing_statuses = {
-                int(row["employee_id"]): str(row["status"]) for row in rows
-            }
-            blocked_ids = {
-                employee_id
-                for employee_id in selected_employee_ids
-                if employee_id in existing_statuses
-                and existing_statuses[employee_id] != "DAY_OFF"
-            }
-            current_day_off_ids = {
-                employee_id
-                for employee_id, status in existing_statuses.items()
-                if status == "DAY_OFF"
-            }
-            ids_to_remove = current_day_off_ids - selected_employee_ids
-            ids_to_add = selected_employee_ids - existing_statuses.keys()
+            blocked_ids: set[int] = set()
+            ids_to_delete: list[int] = []
+            ids_to_override: list[int] = []
+            ids_to_restore: list[int] = []
+            ids_to_add: list[int] = []
+            weekday = entry_date.weekday()
+
+            for row in rows:
+                employee_id = int(row["employee_id"])
+                status = row["status"]
+                follows_default = row["default_day_off"] == weekday
+                if employee_id in selected_employee_ids:
+                    if status is None:
+                        ids_to_add.append(employee_id)
+                    elif status == "WORK_OVERRIDE":
+                        ids_to_restore.append(employee_id)
+                    elif status not in {"DAY_OFF"}:
+                        blocked_ids.add(employee_id)
+                elif status == "DAY_OFF":
+                    if follows_default:
+                        ids_to_override.append(employee_id)
+                    else:
+                        ids_to_delete.append(employee_id)
+                elif status is None and follows_default:
+                    ids_to_override.append(employee_id)
 
             connection.executemany(
                 """
                 DELETE FROM schedule_entries
                 WHERE employee_id = ? AND date = ? AND status = 'DAY_OFF'
                 """,
-                ((employee_id, date_text) for employee_id in ids_to_remove),
+                ((employee_id, date_text) for employee_id in ids_to_delete),
             )
             connection.executemany(
                 """
-                INSERT INTO schedule_entries(employee_id, date, status, notes)
-                VALUES (?, ?, 'DAY_OFF', NULL)
+                INSERT INTO schedule_entries(employee_id, date, status, source, notes)
+                VALUES (?, ?, 'WORK_OVERRIDE', 'MANUAL', NULL)
+                ON CONFLICT(employee_id, date) DO UPDATE SET
+                    status = 'WORK_OVERRIDE', source = 'MANUAL', notes = NULL
+                """,
+                ((employee_id, date_text) for employee_id in ids_to_override),
+            )
+            connection.executemany(
+                """
+                UPDATE schedule_entries
+                SET status = 'DAY_OFF', source = 'MANUAL', notes = NULL
+                WHERE employee_id = ? AND date = ? AND status = 'WORK_OVERRIDE'
+                """,
+                ((employee_id, date_text) for employee_id in ids_to_restore),
+            )
+            connection.executemany(
+                """
+                INSERT INTO schedule_entries(employee_id, date, status, source, notes)
+                VALUES (?, ?, 'DAY_OFF', 'MANUAL', NULL)
                 """,
                 ((employee_id, date_text) for employee_id in ids_to_add),
             )
@@ -134,9 +191,11 @@ class ScheduleRepository:
         with self.database.transaction() as connection:
             source_rows = connection.execute(
                 """
-                SELECT employee_id, date, status, notes
+                SELECT employee_id, date, status, notes, source
                 FROM schedule_entries
                 WHERE date BETWEEN ? AND ?
+                  AND source = 'MANUAL'
+                  AND status != 'WORK_OVERRIDE'
                 """,
                 (source_start.isoformat(), source_end.isoformat()),
             ).fetchall()
@@ -153,8 +212,10 @@ class ScheduleRepository:
                 target_date = date(year, month, source_date.day)
                 connection.execute(
                     """
-                    INSERT INTO schedule_entries(employee_id, date, status, notes)
-                    VALUES (?, ?, ?, ?)
+                    INSERT INTO schedule_entries(
+                        employee_id, date, status, source, notes
+                    )
+                    VALUES (?, ?, ?, 'MANUAL', ?)
                     """,
                     (
                         row["employee_id"],

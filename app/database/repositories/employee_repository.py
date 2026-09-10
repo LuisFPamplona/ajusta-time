@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import sqlite3
 from dataclasses import dataclass
+from datetime import date
 
 from app.database.connection import Database
 
@@ -10,6 +11,7 @@ from app.database.connection import Database
 class Employee:
     id: int
     name: str
+    default_day_off: int | None = None
 
 
 class EmployeeRepository:
@@ -19,26 +21,65 @@ class EmployeeRepository:
     def list_all(self) -> list[Employee]:
         with self.database.connection() as connection:
             rows = connection.execute(
-                "SELECT id, name FROM employees ORDER BY name COLLATE NOCASE"
+                """
+                SELECT id, name, default_day_off
+                FROM employees
+                ORDER BY name COLLATE NOCASE
+                """
             ).fetchall()
-        return [Employee(id=row["id"], name=row["name"]) for row in rows]
+        return [
+            Employee(
+                id=row["id"],
+                name=row["name"],
+                default_day_off=row["default_day_off"],
+            )
+            for row in rows
+        ]
 
-    def add(self, name: str) -> Employee:
+    def add(self, name: str, default_day_off: int | None) -> Employee:
         with self.database.transaction() as connection:
             cursor = connection.execute(
-                "INSERT INTO employees(name) VALUES (?)", (name,)
+                "INSERT INTO employees(name, default_day_off) VALUES (?, ?)",
+                (name, default_day_off),
             )
             employee_id = int(cursor.lastrowid)
-        return Employee(employee_id, name)
+        return Employee(employee_id, name, default_day_off)
 
-    def update(self, employee_id: int, name: str) -> None:
+    def update(
+        self,
+        employee_id: int,
+        name: str,
+        default_day_off: int | None,
+        future_from: date,
+    ) -> None:
         with self.database.transaction() as connection:
+            current = connection.execute(
+                "SELECT default_day_off FROM employees WHERE id = ?",
+                (employee_id,),
+            ).fetchone()
+            if current is None:
+                raise LookupError("Funcionário não encontrado.")
             cursor = connection.execute(
-                "UPDATE employees SET name = ? WHERE id = ?",
-                (name, employee_id),
+                """
+                UPDATE employees
+                SET name = ?, default_day_off = ?
+                WHERE id = ?
+                """,
+                (name, default_day_off, employee_id),
             )
             if cursor.rowcount == 0:
                 raise LookupError("Funcionário não encontrado.")
+            if current["default_day_off"] != default_day_off:
+                connection.execute(
+                    """
+                    DELETE FROM schedule_entries
+                    WHERE employee_id = ?
+                      AND date >= ?
+                      AND status = 'DAY_OFF'
+                      AND source = 'DEFAULT'
+                    """,
+                    (employee_id, future_from.isoformat()),
+                )
 
     def delete(self, employee_id: int) -> None:
         try:

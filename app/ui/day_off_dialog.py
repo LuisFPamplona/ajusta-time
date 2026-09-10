@@ -14,7 +14,9 @@ from PySide6.QtWidgets import (
 )
 
 from app.database.repositories.employee_repository import Employee
+from app.database.repositories.schedule_repository import ScheduleEntry
 from app.services.schedule_service import STATUS_NAMES
+from app.ui.employee_dialog import DAY_OFF_NAMES
 
 
 class DayOffDialog(QDialog):
@@ -23,19 +25,20 @@ class DayOffDialog(QDialog):
         selected_date: date,
         month_name: str,
         employees: list[Employee],
-        statuses: dict[int, str],
+        entries: dict[int, ScheduleEntry],
         parent: QWidget | None = None,
     ) -> None:
         super().__init__(parent)
         self.setWindowTitle(
-            f"Folgas — {selected_date.day} de {month_name.lower()} de "
-            f"{selected_date.year}"
+            f"Folgas — {DAY_OFF_NAMES[selected_date.weekday()]}, "
+            f"{selected_date.day} de {month_name.lower()} de {selected_date.year}"
         )
         self.setMinimumSize(520, 470)
         self.resize(560, 540)
 
         title = QLabel(self.windowTitle())
         title.setObjectName("pageTitle")
+        title.setWordWrap(True)
         subtitle = QLabel(
             "Marque os funcionários que estarão de folga. "
             "Outras ocorrências são preservadas."
@@ -46,17 +49,33 @@ class DayOffDialog(QDialog):
         self.employee_list = QListWidget()
         self.employee_list.setAlternatingRowColors(True)
         for employee in employees:
-            status = statuses.get(employee.id)
-            text = employee.name
-            item = QListWidgetItem(text)
+            entry = entries.get(employee.id)
+            status = entry.status if entry else None
+            item = QListWidgetItem(employee.name)
             item.setData(Qt.ItemDataRole.UserRole, employee.id)
             if status == "DAY_OFF":
+                if entry and entry.source == "DEFAULT":
+                    if employee.default_day_off == selected_date.weekday():
+                        item.setText(f"{employee.name} — Folga padrão")
+                        item.setToolTip(
+                            f"Folga semanal padrão: "
+                            f"{DAY_OFF_NAMES[employee.default_day_off]}"
+                        )
+                    else:
+                        item.setText(f"{employee.name} — Folga automática (histórico)")
                 item.setFlags(
                     Qt.ItemFlag.ItemIsEnabled
                     | Qt.ItemFlag.ItemIsSelectable
                     | Qt.ItemFlag.ItemIsUserCheckable
                 )
                 item.setCheckState(Qt.CheckState.Checked)
+            elif status == "WORK_OVERRIDE":
+                item.setFlags(
+                    Qt.ItemFlag.ItemIsEnabled
+                    | Qt.ItemFlag.ItemIsSelectable
+                    | Qt.ItemFlag.ItemIsUserCheckable
+                )
+                item.setCheckState(Qt.CheckState.Unchecked)
             elif status:
                 item.setText(f"{employee.name} — {STATUS_NAMES[status]} (preservado)")
                 item.setFlags(Qt.ItemFlag.ItemIsUserCheckable)

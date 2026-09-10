@@ -5,9 +5,11 @@ Aplicativo desktop, offline, para cadastrar funcionários, montar escalas mensai
 ## Recursos
 
 - Cadastro, edição e exclusão segura de funcionários.
+- Folga semanal padrão opcional para cada funcionário, de segunda a domingo.
 - Calendário mensal responsivo, com contagem diária de folgas e dias da semana em português.
 - Cards com total de folgas, dia com mais folgas e quantidade de funcionários.
 - Seleção dos funcionários de folga em um diálogo aberto pelo clique no dia.
+- Exceções persistentes para trabalhar em um dia que seria uma folga padrão.
 - Preservação de férias, atestados e faltas existentes durante a edição das folgas.
 - Cópia transacional do mês anterior, ignorando datas inexistentes.
 - Pré-visualização e impressão nativas do Qt em A4 horizontal, com todos os dias na mesma largura e paginação vertical.
@@ -51,7 +53,7 @@ O arquivo `data/escala.db` contém os dados reais e não é versionado pelo Git.
 
 ## Uso básico
 
-1. Abra **Funcionários** para manter a lista de pessoas.
+1. Abra **Funcionários** para manter a lista de pessoas e, opcionalmente, definir a folga semanal padrão.
 2. Em **Escala**, escolha mês e ano ou use as setas para navegar.
 3. Clique em um dia do calendário, marque os funcionários de folga e selecione **Salvar**. Funcionários que já possuem férias, atestado ou falta aparecem protegidos contra alteração acidental.
 4. Use **Copiar mês anterior** para substituir o mês atual pelas ocorrências do mês anterior.
@@ -59,11 +61,15 @@ O arquivo `data/escala.db` contém os dados reais e não é versionado pelo Git.
 
 Um funcionário com ocorrências não pode ser excluído, evitando registros órfãos. Limpe as ocorrências correspondentes antes de excluí-lo.
 
+As folgas padrão são geradas como `DAY_OFF` sem sobrescrever ocorrências existentes. Se uma folga padrão for desmarcada no diálogo do dia, o aplicativo registra internamente uma exceção de trabalho para que ela não reapareça ao recarregar o calendário. Ao trocar ou remover o dia padrão, somente folgas automáticas futuras são removidas; histórico e decisões manuais permanecem preservados.
+
 ## Backup
 
 - **Backup do banco SQLite:** usa a API de backup do SQLite, adequada mesmo com o banco em uso.
-- **Exportar JSON:** grava funcionários, ocorrências e configurações em um arquivo legível.
+- **Exportar JSON:** grava funcionários, folgas padrão, ocorrências com suas origens e configurações em um arquivo legível.
 - **Importar JSON:** valida todo o arquivo antes da operação e substitui os dados em uma única transação. Se qualquer etapa falhar, os dados anteriores são preservados.
+
+Backups JSON anteriores à inclusão das folgas padrão continuam compatíveis: dias padrão ausentes são interpretados como `Nenhuma` e origens ausentes como `MANUAL`.
 
 Importar JSON substitui todos os dados atuais; crie um backup antes quando necessário.
 

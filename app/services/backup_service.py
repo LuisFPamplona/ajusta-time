@@ -5,7 +5,7 @@ from datetime import date, datetime
 from pathlib import Path
 
 from app.database.connection import Database
-from app.database.repositories.schedule_repository import VALID_STATUSES
+from app.database.repositories.schedule_repository import VALID_SOURCES, VALID_STATUSES
 
 
 class BackupValidationError(ValueError):
@@ -28,14 +28,17 @@ class BackupService:
             employees = [
                 dict(row)
                 for row in connection.execute(
-                    "SELECT id, name FROM employees ORDER BY id"
+                    """
+                    SELECT id, name, default_day_off
+                    FROM employees ORDER BY id
+                    """
                 ).fetchall()
             ]
             entries = [
                 dict(row)
                 for row in connection.execute(
                     """
-                    SELECT id, employee_id, date, status, notes
+                    SELECT id, employee_id, date, status, source, notes
                     FROM schedule_entries ORDER BY id
                     """
                 ).fetchall()
@@ -72,13 +75,21 @@ class BackupService:
             connection.execute("DELETE FROM employees")
             connection.execute("DELETE FROM settings")
             connection.executemany(
-                "INSERT INTO employees(id, name) VALUES (?, ?)",
-                ((item["id"], item["name"]) for item in employees),
+                """
+                INSERT INTO employees(id, name, default_day_off)
+                VALUES (?, ?, ?)
+                """,
+                (
+                    (item["id"], item["name"], item["default_day_off"])
+                    for item in employees
+                ),
             )
             connection.executemany(
                 """
-                INSERT INTO schedule_entries(id, employee_id, date, status, notes)
-                VALUES (?, ?, ?, ?, ?)
+                INSERT INTO schedule_entries(
+                    id, employee_id, date, status, source, notes
+                )
+                VALUES (?, ?, ?, ?, ?, ?)
                 """,
                 (
                     (
@@ -86,6 +97,7 @@ class BackupService:
                         item["employee_id"],
                         item["date"],
                         item["status"],
+                        item["source"],
                         item["notes"],
                     )
                     for item in entries
@@ -126,6 +138,7 @@ class BackupService:
             if not isinstance(item, dict):
                 raise BackupValidationError("Registro de funcionário inválido.")
             employee_id, name = item.get("id"), item.get("name")
+            default_day_off = item.get("default_day_off")
             if (
                 not isinstance(employee_id, int)
                 or isinstance(employee_id, bool)
@@ -133,10 +146,24 @@ class BackupService:
                 or not isinstance(name, str)
                 or not name.strip()
                 or employee_id in employee_ids
+                or (
+                    default_day_off is not None
+                    and (
+                        not isinstance(default_day_off, int)
+                        or isinstance(default_day_off, bool)
+                        or not 0 <= default_day_off <= 6
+                    )
+                )
             ):
                 raise BackupValidationError("Registro de funcionário inválido.")
             employee_ids.add(employee_id)
-            employees.append({"id": employee_id, "name": name.strip()})
+            employees.append(
+                {
+                    "id": employee_id,
+                    "name": name.strip(),
+                    "default_day_off": default_day_off,
+                }
+            )
 
         entries: list[dict[str, object]] = []
         entry_ids: set[int] = set()
@@ -148,6 +175,7 @@ class BackupService:
             employee_id = item.get("employee_id")
             entry_date = item.get("date")
             status = item.get("status")
+            source = item.get("source", "MANUAL")
             notes = item.get("notes")
             if (
                 not isinstance(entry_id, int)
@@ -158,7 +186,12 @@ class BackupService:
                 or isinstance(employee_id, bool)
                 or employee_id not in employee_ids
                 or not isinstance(entry_date, str)
+                or not isinstance(status, str)
                 or status not in VALID_STATUSES
+                or not isinstance(source, str)
+                or source not in VALID_SOURCES
+                or (source == "DEFAULT" and status != "DAY_OFF")
+                or (status == "WORK_OVERRIDE" and source != "MANUAL")
                 or (notes is not None and not isinstance(notes, str))
             ):
                 raise BackupValidationError("Registro de escala inválido.")
@@ -179,6 +212,7 @@ class BackupService:
                     "employee_id": employee_id,
                     "date": entry_date,
                     "status": status,
+                    "source": source,
                     "notes": notes,
                 }
             )

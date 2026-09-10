@@ -18,6 +18,11 @@ QLabel#pageSubtitle {
     color: #718096;
     font-size: 10.5pt;
 }
+QLabel#dialogTitle {
+    color: #111c2f;
+    font-size: 16pt;
+    font-weight: 700;
+}
 QLabel#legend {
     color: #667085;
     padding: 5px 4px;

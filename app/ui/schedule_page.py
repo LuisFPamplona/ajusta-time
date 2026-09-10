@@ -18,6 +18,7 @@ from PySide6.QtWidgets import (
 )
 
 from app.database.repositories.employee_repository import Employee
+from app.database.repositories.schedule_repository import ScheduleEntry
 from app.database.repositories.settings_repository import SettingsRepository
 from app.services.employee_service import EmployeeService
 from app.services.print_service import PrintService
@@ -58,6 +59,7 @@ class SchedulePage(QWidget):
         self.print_service = print_service
         self._employees: list[Employee] = []
         self._entries: dict[tuple[int, int], str] = {}
+        self._entry_details: dict[tuple[int, int], ScheduleEntry] = {}
         today = datetime.now().astimezone().date()
 
         title = QLabel("Escala mensal")
@@ -171,9 +173,14 @@ class SchedulePage(QWidget):
         year, month = self.selected_year, self.selected_month
         days_in_month = calendar.monthrange(year, month)[1]
         self._employees = self.employee_service.list_employees()
-        entry_list = self.schedule_service.month_entry_list(year, month)
+        entry_list = self.schedule_service.get_month_schedule(
+            year, month, self._employees
+        )
         self._entries = {
             (entry.employee_id, entry.date.day): entry.status for entry in entry_list
+        }
+        self._entry_details = {
+            (entry.employee_id, entry.date.day): entry for entry in entry_list
         }
 
         employee_names = {employee.id: employee.name for employee in self._employees}
@@ -239,16 +246,16 @@ class SchedulePage(QWidget):
         self.reload()
 
     def open_day(self, selected_date: date) -> None:
-        statuses = {
-            employee.id: status
+        entries = {
+            employee.id: entry
             for employee in self._employees
-            if (status := self._entries.get((employee.id, selected_date.day)))
+            if (entry := self._entry_details.get((employee.id, selected_date.day)))
         }
         dialog = DayOffDialog(
             selected_date,
             MONTH_NAMES[selected_date.month - 1],
             self._employees,
-            statuses,
+            entries,
             self,
         )
         if dialog.exec() != QDialog.DialogCode.Accepted:

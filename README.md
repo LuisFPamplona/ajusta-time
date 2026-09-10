@@ -5,8 +5,10 @@ Aplicativo desktop, offline, para cadastrar funcionários, montar escalas mensai
 ## Recursos
 
 - Cadastro, edição e exclusão segura de funcionários.
-- Escala mensal com 28, 29, 30 ou 31 dias e dias da semana em português.
-- Edição automática pelo menu de contexto de cada célula (`F`, `FE`, `AT`, `FA` ou limpar).
+- Calendário mensal responsivo, com contagem diária de folgas e dias da semana em português.
+- Cards com total de folgas, dia com mais folgas e quantidade de funcionários.
+- Seleção dos funcionários de folga em um diálogo aberto pelo clique no dia.
+- Preservação de férias, atestados e faltas existentes durante a edição das folgas.
 - Cópia transacional do mês anterior, ignorando datas inexistentes.
 - Pré-visualização e impressão nativas do Qt em A4 horizontal, com todos os dias na mesma largura e paginação vertical.
 - Nome da empresa, título e opções de legenda, assinatura e data de impressão.
@@ -50,8 +52,8 @@ O arquivo `data/escala.db` contém os dados reais e não é versionado pelo Git.
 ## Uso básico
 
 1. Abra **Funcionários** para manter a lista de pessoas.
-2. Em **Escala**, escolha mês e ano.
-3. Clique com o botão direito em uma célula e escolha Folga, Férias, Atestado, Falta ou Limpar. A alteração é salva imediatamente.
+2. Em **Escala**, escolha mês e ano ou use as setas para navegar.
+3. Clique em um dia do calendário, marque os funcionários de folga e selecione **Salvar**. Funcionários que já possuem férias, atestado ou falta aparecem protegidos contra alteração acidental.
 4. Use **Copiar mês anterior** para substituir o mês atual pelas ocorrências do mês anterior.
 5. Use **Imprimir** para abrir a pré-visualização. O botão de impressão da prévia abre a seleção nativa de impressora.
 
@@ -98,4 +100,3 @@ pyinstaller --noconfirm --windowed --name "Ajusta Time" main.py
 ```
 
 O executável será criado em `dist/Ajusta Time/`. O arquivo `.spec`, `build/` e `dist/` são artefatos locais e estão ignorados pelo Git. Antes de distribuir, valide em uma máquina Windows limpa a escrita na pasta `data`, a pré-visualização e uma impressão real.
-

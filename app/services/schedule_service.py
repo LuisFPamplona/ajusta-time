@@ -43,5 +43,18 @@ class ScheduleService:
             raise ValueError("Status de escala inválido.")
         self.repository.set_status(employee_id, date(year, month, day), status)
 
+    def set_day_off_employees(
+        self,
+        year: int,
+        month: int,
+        day: int,
+        selected_employee_ids: set[int],
+    ) -> set[int]:
+        if any(employee_id <= 0 for employee_id in selected_employee_ids):
+            raise ValueError("Funcionário inválido.")
+        return self.repository.set_day_off_employees(
+            date(year, month, day), selected_employee_ids
+        )
+
     def copy_previous_month(self, year: int, month: int) -> int:
         return self.repository.replace_with_previous_month(year, month)

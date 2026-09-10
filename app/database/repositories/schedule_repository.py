@@ -70,6 +70,53 @@ class ScheduleRepository:
                 (employee_id, entry_date.isoformat(), status, notes),
             )
 
+    def set_day_off_employees(
+        self, entry_date: date, selected_employee_ids: set[int]
+    ) -> set[int]:
+        """Replace only DAY_OFF entries for a date, preserving every other status."""
+        date_text = entry_date.isoformat()
+        with self.database.transaction() as connection:
+            rows = connection.execute(
+                """
+                SELECT employee_id, status
+                FROM schedule_entries
+                WHERE date = ?
+                """,
+                (date_text,),
+            ).fetchall()
+            existing_statuses = {
+                int(row["employee_id"]): str(row["status"]) for row in rows
+            }
+            blocked_ids = {
+                employee_id
+                for employee_id in selected_employee_ids
+                if employee_id in existing_statuses
+                and existing_statuses[employee_id] != "DAY_OFF"
+            }
+            current_day_off_ids = {
+                employee_id
+                for employee_id, status in existing_statuses.items()
+                if status == "DAY_OFF"
+            }
+            ids_to_remove = current_day_off_ids - selected_employee_ids
+            ids_to_add = selected_employee_ids - existing_statuses.keys()
+
+            connection.executemany(
+                """
+                DELETE FROM schedule_entries
+                WHERE employee_id = ? AND date = ? AND status = 'DAY_OFF'
+                """,
+                ((employee_id, date_text) for employee_id in ids_to_remove),
+            )
+            connection.executemany(
+                """
+                INSERT INTO schedule_entries(employee_id, date, status, notes)
+                VALUES (?, ?, 'DAY_OFF', NULL)
+                """,
+                ((employee_id, date_text) for employee_id in ids_to_add),
+            )
+        return blocked_ids
+
     def replace_with_previous_month(self, year: int, month: int) -> int:
         target_start = date(year, month, 1)
         if month == 1:

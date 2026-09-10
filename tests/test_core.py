@@ -56,6 +56,19 @@ class CoreTestCase(unittest.TestCase):
         with self.assertRaises(EmployeeHasScheduleError):
             self.employees.delete_employee(employee.id)
 
+    def test_day_off_dialog_update_preserves_other_statuses(self) -> None:
+        first, second, third = self.employees.list_employees()
+        self.schedule.set_status(first.id, 2026, 9, 15, "VACATION")
+        self.schedule.set_status(second.id, 2026, 9, 15, "DAY_OFF")
+
+        blocked = self.schedule.set_day_off_employees(2026, 9, 15, {first.id, third.id})
+
+        entries = self.schedule.month_entries(2026, 9)
+        self.assertEqual(blocked, {first.id})
+        self.assertEqual(entries[(first.id, 15)], "VACATION")
+        self.assertNotIn((second.id, 15), entries)
+        self.assertEqual(entries[(third.id, 15)], "DAY_OFF")
+
     def test_copy_previous_month_replaces_target_and_skips_invalid_days(self) -> None:
         employee = self.employees.list_employees()[0]
         self.schedule.set_status(employee.id, 2026, 1, 31, "DAY_OFF")

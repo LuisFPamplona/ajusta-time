@@ -4,6 +4,7 @@ import logging
 import os
 import sqlite3
 import sys
+from contextlib import closing
 from pathlib import Path
 
 from app.database.connection import Database
@@ -79,7 +80,7 @@ def migrate_legacy_database(destination: Path, legacy: Path | None = None) -> bo
 
 def _is_valid_legacy_database(path: Path) -> bool:
     try:
-        with sqlite3.connect(path) as connection:
+        with closing(sqlite3.connect(path)) as connection:
             integrity = connection.execute("PRAGMA quick_check").fetchone()
             tables = {
                 row[0]

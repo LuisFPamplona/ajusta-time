@@ -1,4 +1,4 @@
-__pycache__/
+**/__pycache__/
 *.py[cod]
 *$py.class
 
@@ -9,6 +9,8 @@ env/
 build/
 dist/
 *.spec
+logs/
+*.log
 
 .pytest_cache/
 .coverage
@@ -18,10 +20,14 @@ htmlcov/
 .vscode/
 *.swp
 *.tmp
+.DS_Store
+Thumbs.db
 
-data/*.db
-data/*.db-*
-data/*.sqlite*
+*.db
+*.db-*
+*.sqlite
+*.sqlite3
+*.sqlite-*
 backups/
+backup-*.db
 backup-ajusta-time-*.json
-

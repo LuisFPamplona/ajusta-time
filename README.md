@@ -1,6 +1,6 @@
-# Ajusta Time
+# Ajusta Time 1.0.0
 
-Aplicativo desktop, offline, para cadastrar funcionários, montar escalas mensais de folgas e imprimir a escala em A4. Dias normais de trabalho ficam vazios; o banco armazena somente folgas, férias, atestados e faltas.
+Aplicativo desktop e offline para organização de escalas de folgas. Desenvolvido em Python, PySide6 e SQLite.
 
 ## Recursos
 
@@ -48,9 +48,18 @@ python -m pip install -r requirements.txt
 python main.py
 ```
 
-Na primeira execução o aplicativo cria automaticamente `data/escala.db`, as tabelas necessárias e três funcionários de exemplo. Os exemplos são incluídos uma única vez e podem ser editados ou excluídos.
+Na primeira execução o aplicativo cria automaticamente o diretório de dados, o banco SQLite, as tabelas necessárias e três funcionários de exemplo. Os exemplos são incluídos uma única vez e podem ser editados ou excluídos.
 
-O arquivo `data/escala.db` contém os dados reais e não é versionado pelo Git. Faça backups regulares pela tela **Configurações**.
+No Windows, os dados ficam fora dos arquivos do programa:
+
+```text
+%LOCALAPPDATA%\AjustaTime\escala.db
+%LOCALAPPDATA%\AjustaTime\logs\ajusta-time.log
+```
+
+No Linux, o padrão é `~/.local/share/AjustaTime`; no macOS, `~/Library/Application Support/AjustaTime`. A variável `AJUSTA_TIME_DATA_DIR` pode isolar os dados durante desenvolvimento e testes.
+
+Se ainda existir um banco legado válido em `data/escala.db` e o novo destino estiver vazio, o aplicativo cria uma cópia consistente no diretório do usuário. O banco legado não é apagado nem um banco existente é sobrescrito. Faça backups regulares pela tela **Configurações**.
 
 ## Uso básico
 
@@ -104,12 +113,6 @@ menus, listas suspensas, dicas e outras janelas auxiliares do Qt.
 python -m unittest discover -v
 ```
 
-## Empacotamento futuro com PyInstaller
+## Distribuição Windows
 
-Com o ambiente virtual ativo:
-
-```powershell
-pyinstaller --noconfirm --windowed --name "Ajusta Time" main.py
-```
-
-O executável será criado em `dist/Ajusta Time/`. O arquivo `.spec`, `build/` e `dist/` são artefatos locais e estão ignorados pelo Git. Antes de distribuir, valide em uma máquina Windows limpa a escrita na pasta `data`, a pré-visualização e uma impressão real.
+A etapa de empacotamento será realizada posteriormente. Esta versão ainda não inclui executável, instalador ou configuração de distribuição.

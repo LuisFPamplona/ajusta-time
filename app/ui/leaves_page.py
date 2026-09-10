@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 from datetime import date, datetime
 
 from PySide6.QtCore import Qt, Signal
@@ -26,6 +27,8 @@ from app.services.leave_service import (
     LeaveService,
 )
 from app.ui.leave_dialog import LeaveDialog
+
+logger = logging.getLogger("ajusta_time.ui.leaves")
 
 
 class LeavesPage(QWidget):
@@ -262,11 +265,12 @@ class LeavesPage(QWidget):
             except (LeaveOverlapError, TypeError, ValueError, LookupError) as error:
                 QMessageBox.warning(self, "Afastamentos", str(error))
                 return False
-            except Exception as error:  # noqa: BLE001 - limite da interface gráfica
+            except Exception:
+                logger.exception("Falha inesperada ao salvar afastamento.")
                 QMessageBox.critical(
                     self,
                     "Afastamentos",
-                    f"Não foi possível salvar o afastamento.\n\n{error}",
+                    "Não foi possível salvar o afastamento. Consulte o log.",
                 )
                 return False
 

@@ -1,9 +1,10 @@
 from __future__ import annotations
 
+import logging
 from datetime import datetime
 from pathlib import Path
 
-from PySide6.QtCore import Signal
+from PySide6.QtCore import QStandardPaths, Signal
 from PySide6.QtWidgets import (
     QCheckBox,
     QFileDialog,
@@ -19,7 +20,10 @@ from PySide6.QtWidgets import (
 )
 
 from app.database.repositories.settings_repository import SettingsRepository
-from app.services.backup_service import BackupService
+from app.services.backup_service import BackupService, BackupValidationError
+from app.version import APP_NAME, APP_VERSION
+
+logger = logging.getLogger("ajusta_time.ui.settings")
 
 
 class SettingsPage(QWidget):
@@ -88,6 +92,9 @@ class SettingsPage(QWidget):
         layout.addWidget(print_group)
         layout.addWidget(backup_group)
         layout.addStretch()
+        version_label = QLabel(f"{APP_NAME}  •  Versão {APP_VERSION}")
+        version_label.setObjectName("versionInfo")
+        layout.addWidget(version_label)
         self.reload()
 
     def reload(self) -> None:
@@ -103,30 +110,45 @@ class SettingsPage(QWidget):
         if not title:
             QMessageBox.warning(self, "Configurações", "Informe o título da impressão.")
             return
-        self.settings_repository.save(
-            {
-                "company_name": self.company_name.text().strip(),
-                "print_title": title,
-                "show_legend": "1" if self.show_legend.isChecked() else "0",
-                "show_signature": "1" if self.show_signature.isChecked() else "0",
-                "show_print_date": "1" if self.show_print_date.isChecked() else "0",
-            }
-        )
+        try:
+            self.settings_repository.save(
+                {
+                    "company_name": self.company_name.text().strip(),
+                    "print_title": title,
+                    "show_legend": "1" if self.show_legend.isChecked() else "0",
+                    "show_signature": "1" if self.show_signature.isChecked() else "0",
+                    "show_print_date": "1" if self.show_print_date.isChecked() else "0",
+                }
+            )
+        except Exception:
+            logger.exception("Falha ao salvar configurações.")
+            QMessageBox.critical(
+                self,
+                "Configurações",
+                "Não foi possível salvar as configurações. Consulte o log.",
+            )
+            return
         QMessageBox.information(self, "Configurações", "Configurações salvas.")
 
     def backup_database(self) -> None:
         today = datetime.now().astimezone().date()
         default_name = f"backup-ajusta-time-{today:%Y-%m-%d}.db"
         filename, _ = QFileDialog.getSaveFileName(
-            self, "Salvar backup SQLite", default_name, "Banco SQLite (*.db)"
+            self,
+            "Salvar backup SQLite",
+            self._suggested_path(default_name),
+            "Banco SQLite (*.db)",
         )
         if not filename:
             return
         try:
             self.backup_service.create_database_backup(Path(filename))
-        except Exception as error:  # noqa: BLE001 - limite da interface gráfica
+        except Exception:
+            logger.exception("Falha ao criar backup SQLite.")
             QMessageBox.critical(
-                self, "Backup", f"Não foi possível criar o backup.\n\n{error}"
+                self,
+                "Backup",
+                "Não foi possível criar o backup SQLite. Consulte o log.",
             )
             return
         QMessageBox.information(self, "Backup", "Backup SQLite criado com sucesso.")
@@ -135,7 +157,10 @@ class SettingsPage(QWidget):
         today = datetime.now().astimezone().date()
         default_name = f"backup-ajusta-time-{today:%Y-%m-%d}.json"
         filename, _ = QFileDialog.getSaveFileName(
-            self, "Exportar backup JSON", default_name, "Arquivo JSON (*.json)"
+            self,
+            "Exportar backup JSON",
+            self._suggested_path(default_name),
+            "Arquivo JSON (*.json)",
         )
         if not filename:
             return
@@ -144,16 +169,22 @@ class SettingsPage(QWidget):
             destination = destination.with_suffix(".json")
         try:
             self.backup_service.export_json(destination)
-        except Exception as error:  # noqa: BLE001 - limite da interface gráfica
+        except Exception:
+            logger.exception("Falha ao exportar backup JSON.")
             QMessageBox.critical(
-                self, "Backup", f"Não foi possível exportar o JSON.\n\n{error}"
+                self,
+                "Backup",
+                "Não foi possível exportar o JSON. Consulte o log.",
             )
             return
         QMessageBox.information(self, "Backup", "Backup JSON exportado com sucesso.")
 
     def import_json(self) -> None:
         filename, _ = QFileDialog.getOpenFileName(
-            self, "Importar backup JSON", "", "Arquivo JSON (*.json)"
+            self,
+            "Importar backup JSON",
+            self._suggested_directory(),
+            "Arquivo JSON (*.json)",
         )
         if not filename:
             return
@@ -168,11 +199,30 @@ class SettingsPage(QWidget):
             return
         try:
             self.backup_service.import_json(Path(filename))
-        except Exception as error:  # noqa: BLE001 - limite da interface gráfica
+        except BackupValidationError as error:
+            logger.warning("Backup JSON rejeitado durante a validação: %s", error)
+            QMessageBox.warning(self, "Backup", str(error))
+            return
+        except Exception:
+            logger.exception("Falha ao importar backup JSON.")
             QMessageBox.critical(
-                self, "Backup", f"Não foi possível importar o backup.\n\n{error}"
+                self,
+                "Backup",
+                "Não foi possível importar o backup. Consulte o log.",
             )
             return
         self.reload()
         self.data_imported.emit()
         QMessageBox.information(self, "Backup", "Backup importado com sucesso.")
+
+    @staticmethod
+    def _suggested_path(filename: str) -> str:
+        return str(Path(SettingsPage._suggested_directory()) / filename)
+
+    @staticmethod
+    def _suggested_directory() -> str:
+        documents = QStandardPaths.writableLocation(
+            QStandardPaths.StandardLocation.DocumentsLocation
+        )
+        directory = Path(documents) if documents else Path.home()
+        return str(directory)

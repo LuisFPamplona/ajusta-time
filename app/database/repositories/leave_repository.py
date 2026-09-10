@@ -33,18 +33,9 @@ class LeaveRepository:
     def list_all(
         self, employee_id: int | None = None, leave_type: str | None = None
     ) -> list[LeavePeriod]:
-        clauses: list[str] = []
-        parameters: list[object] = []
-        if employee_id is not None:
-            clauses.append("leave_periods.employee_id = ?")
-            parameters.append(employee_id)
-        if leave_type is not None:
-            clauses.append("leave_periods.type = ?")
-            parameters.append(leave_type)
-        where = f"WHERE {' AND '.join(clauses)}" if clauses else ""
         with self.database.connection() as connection:
             rows = connection.execute(
-                f"""
+                """
                 SELECT
                     leave_periods.id,
                     leave_periods.employee_id,
@@ -55,10 +46,11 @@ class LeaveRepository:
                     leave_periods.notes
                 FROM leave_periods
                 JOIN employees ON employees.id = leave_periods.employee_id
-                {where}
+                WHERE (? IS NULL OR leave_periods.employee_id = ?)
+                  AND (? IS NULL OR leave_periods.type = ?)
                 ORDER BY leave_periods.start_date, employees.name COLLATE NOCASE
                 """,
-                parameters,
+                (employee_id, employee_id, leave_type, leave_type),
             ).fetchall()
         return [self._from_row(row) for row in rows]
 

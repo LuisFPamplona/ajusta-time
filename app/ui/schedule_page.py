@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import calendar
+import logging
 from datetime import date, datetime
 
 from PySide6.QtCore import QSignalBlocker
@@ -42,6 +43,8 @@ MONTH_NAMES = (
     "Novembro",
     "Dezembro",
 )
+
+logger = logging.getLogger("ajusta_time.ui.schedule")
 
 
 class SchedulePage(QWidget):
@@ -270,9 +273,12 @@ class SchedulePage(QWidget):
                 selected_date.day,
                 dialog.selected_employee_ids(),
             )
-        except Exception as error:  # noqa: BLE001 - limite da interface gráfica
+        except Exception:
+            logger.exception("Falha inesperada ao salvar folgas do dia.")
             QMessageBox.critical(
-                self, "Folgas", f"Não foi possível salvar as folgas.\n\n{error}"
+                self,
+                "Folgas",
+                "Não foi possível salvar as folgas. Consulte o log.",
             )
             return
         self.reload()
@@ -301,9 +307,12 @@ class SchedulePage(QWidget):
             copied = self.schedule_service.copy_previous_month(
                 self.selected_year, self.selected_month
             )
-        except Exception as error:  # noqa: BLE001 - limite da interface gráfica
+        except Exception:
+            logger.exception("Falha inesperada ao copiar o mês anterior.")
             QMessageBox.critical(
-                self, "Escala", f"Não foi possível copiar a escala.\n\n{error}"
+                self,
+                "Escala",
+                "Não foi possível copiar a escala. Consulte o log.",
             )
             return
         self.reload()
@@ -322,9 +331,10 @@ class SchedulePage(QWidget):
                 self._entries,
                 settings,
             )
-        except Exception as error:  # noqa: BLE001 - limite da interface gráfica
+        except Exception:
+            logger.exception("Falha ao gerar ou abrir a pré-visualização de impressão.")
             QMessageBox.critical(
                 self,
                 "Impressão",
-                f"Não foi possível gerar a impressão.\n\n{error}",
+                "Não foi possível gerar a impressão. Consulte o log.",
             )

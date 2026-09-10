@@ -37,7 +37,7 @@ class EmployeeService:
 
     @staticmethod
     def _validate_name(name: str) -> str:
-        normalized = " ".join(name.split())
+        normalized = name.strip()
         if not normalized:
             raise ValueError("Informe o nome do funcionário.")
         if len(normalized) > 150:

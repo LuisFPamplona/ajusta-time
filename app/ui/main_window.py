@@ -19,14 +19,15 @@ from app.ui.leaves_page import LeavesPage
 from app.ui.schedule_page import SchedulePage
 from app.ui.settings_page import SettingsPage
 from app.ui.theme import COLORS
+from app.version import APP_NAME
 
 
 class MainWindow(QMainWindow):
     def __init__(self, database: Database) -> None:
         super().__init__()
-        self.setWindowTitle("Ajusta Time")
-        self.resize(1366, 820)
-        self.setMinimumSize(1050, 700)
+        self.setWindowTitle(APP_NAME)
+        self.resize(1280, 720)
+        self.setMinimumSize(1024, 640)
 
         employee_service = EmployeeService(EmployeeRepository(database))
         schedule_service = ScheduleService(ScheduleRepository(database))

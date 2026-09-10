@@ -2,7 +2,9 @@ from __future__ import annotations
 
 import json
 from datetime import date, datetime
+from os import replace
 from pathlib import Path
+from tempfile import NamedTemporaryFile
 
 from app.database.connection import Database
 from app.database.repositories.leave_repository import VALID_LEAVE_TYPES
@@ -72,10 +74,7 @@ class BackupService:
             "schedule_entries": entries,
             "settings": settings,
         }
-        destination.parent.mkdir(parents=True, exist_ok=True)
-        destination.write_text(
-            json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8"
-        )
+        self._write_json_atomically(destination, payload)
 
     def import_json(self, source: Path) -> None:
         try:
@@ -364,3 +363,22 @@ class BackupService:
                 raise BackupValidationError("Configuração inválida.")
             settings[key] = value
         return employees, leave_periods, entries, settings
+
+    @staticmethod
+    def _write_json_atomically(destination: Path, payload: dict[str, object]) -> None:
+        destination.parent.mkdir(parents=True, exist_ok=True)
+        with NamedTemporaryFile(
+            mode="w",
+            encoding="utf-8",
+            prefix=f".{destination.stem}-",
+            suffix=".tmp",
+            dir=destination.parent,
+            delete=False,
+        ) as temporary:
+            temporary_path = Path(temporary.name)
+            json.dump(payload, temporary, ensure_ascii=False, indent=2)
+            temporary.write("\n")
+        try:
+            replace(temporary_path, destination)
+        finally:
+            temporary_path.unlink(missing_ok=True)

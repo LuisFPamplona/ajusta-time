@@ -412,4 +412,9 @@ QLabel#emptyState {
     color: #667085;
     padding: 30px;
 }
+QLabel#versionInfo {
+    color: #8993a3;
+    font-size: 8.5pt;
+    padding-top: 8px;
+}
 """

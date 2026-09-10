@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import logging
+
 from PySide6.QtCore import Qt, Signal
 from PySide6.QtWidgets import (
     QDialog,
@@ -17,6 +19,8 @@ from PySide6.QtWidgets import (
 from app.database.repositories.employee_repository import EmployeeHasScheduleError
 from app.services.employee_service import EmployeeService
 from app.ui.employee_dialog import DAY_OFF_NAMES, EmployeeDialog
+
+logger = logging.getLogger("ajusta_time.ui.employees")
 
 
 class EmployeesPage(QWidget):
@@ -48,7 +52,8 @@ class EmployeesPage(QWidget):
         )
         self.table.doubleClicked.connect(self.edit_selected)
 
-        add_button = QPushButton("Adicionar")
+        add_button = QPushButton("Novo funcionário")
+        add_button.setObjectName("primaryButton")
         edit_button = QPushButton("Editar")
         delete_button = QPushButton("Excluir")
         add_button.clicked.connect(self.add_employee)
@@ -92,6 +97,14 @@ class EmployeesPage(QWidget):
         except ValueError as error:
             QMessageBox.warning(self, "Funcionários", str(error))
             return
+        except Exception:
+            logger.exception("Falha inesperada ao cadastrar funcionário.")
+            QMessageBox.critical(
+                self,
+                "Funcionários",
+                "Não foi possível cadastrar o funcionário. Consulte o log.",
+            )
+            return
         self.reload()
         self.employees_changed.emit()
 
@@ -120,6 +133,14 @@ class EmployeesPage(QWidget):
         except (ValueError, LookupError) as error:
             QMessageBox.warning(self, "Funcionários", str(error))
             return
+        except Exception:
+            logger.exception("Falha inesperada ao editar funcionário.")
+            QMessageBox.critical(
+                self,
+                "Funcionários",
+                "Não foi possível editar o funcionário. Consulte o log.",
+            )
+            return
         self.reload()
         self.employees_changed.emit()
 
@@ -134,7 +155,8 @@ class EmployeesPage(QWidget):
         answer = QMessageBox.question(
             self,
             "Excluir funcionário",
-            f"Deseja excluir {name}?",
+            f"Deseja excluir {name}?\n\nA exclusão só será concluída se não houver "
+            "afastamentos ou ocorrências de escala vinculados.",
             QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
             QMessageBox.StandardButton.No,
         )
@@ -147,6 +169,14 @@ class EmployeesPage(QWidget):
             return
         except LookupError as error:
             QMessageBox.warning(self, "Funcionários", str(error))
+            return
+        except Exception:
+            logger.exception("Falha inesperada ao excluir funcionário.")
+            QMessageBox.critical(
+                self,
+                "Funcionários",
+                "Não foi possível excluir o funcionário. Consulte o log.",
+            )
             return
         self.reload()
         self.employees_changed.emit()

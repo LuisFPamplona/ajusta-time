@@ -55,7 +55,17 @@ jobs:
         shell: pwsh
         env:
           QT_QPA_PLATFORM: offscreen
-        run: python -m unittest discover -v
+        run: |
+          $testOutput = & python -m unittest discover -v 2>&1
+          $testExitCode = $LASTEXITCODE
+          $testOutput | ForEach-Object { Write-Host $_ }
+          if ($testExitCode -ne 0) {
+            $annotation = ($testOutput | Out-String).Trim()
+            $annotation = $annotation.Replace("%", "%25")
+            $annotation = $annotation.Replace("`r", "%0D").Replace("`n", "%0A")
+            Write-Host "::error title=Testes Windows falharam::$annotation"
+            exit $testExitCode
+          }
 
       - name: Gerar build Windows
         shell: pwsh

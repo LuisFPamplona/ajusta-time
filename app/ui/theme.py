@@ -176,17 +176,19 @@ QPushButton#navButton {
     min-width: 20px;
     padding: 6px 9px;
 }
-QComboBox, QSpinBox, QLineEdit {
+QComboBox, QSpinBox, QLineEdit, QDateEdit, QPlainTextEdit {
     background: #ffffff;
     border: 1px solid #cfd8e6;
     border-radius: 7px;
     min-height: 24px;
     padding: 7px 10px;
 }
-QComboBox:hover, QSpinBox:hover, QLineEdit:hover {
+QComboBox:hover, QSpinBox:hover, QLineEdit:hover,
+QDateEdit:hover, QPlainTextEdit:hover {
     border-color: #9cadc5;
 }
-QComboBox:disabled, QSpinBox:disabled, QLineEdit:disabled {
+QComboBox:disabled, QSpinBox:disabled, QLineEdit:disabled,
+QDateEdit:disabled, QPlainTextEdit:disabled {
     background: #f1f3f7;
     border-color: #d9e1ec;
     color: #98a2b3;
@@ -374,5 +376,40 @@ QGroupBox::title {
 }
 QDialog {
     background: #f7f9fc;
+}
+QPushButton[compact="true"] {
+    min-height: 25px;
+    padding: 3px 8px;
+}
+QLabel#leaveBadge {
+    background: #edf2f8;
+    border-radius: 7px;
+    color: #39465a;
+    font-weight: 600;
+    padding: 2px 7px;
+}
+QLabel#leaveBadge[kind="vacation"] {
+    background: #e4efff;
+    color: #175dbd;
+}
+QLabel#leaveBadge[kind="medical_leave"] {
+    background: #fff2f3;
+    color: #a91f2e;
+}
+QLabel#leaveBadge[kind="active"] {
+    background: #e8f7ed;
+    color: #19733f;
+}
+QLabel#leaveBadge[kind="scheduled"] {
+    background: #fff5db;
+    color: #7a5700;
+}
+QLabel#leaveBadge[kind="completed"] {
+    background: #f1f3f7;
+    color: #667085;
+}
+QLabel#emptyState {
+    color: #667085;
+    padding: 30px;
 }
 """

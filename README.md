@@ -6,6 +6,7 @@ Aplicativo desktop, offline, para cadastrar funcionários, montar escalas mensai
 
 - Cadastro, edição e exclusão segura de funcionários.
 - Folga semanal padrão opcional para cada funcionário, de segunda a domingo.
+- Gestão de períodos de férias e atestados, com filtros, situação e observações.
 - Calendário mensal responsivo, com contagem diária de folgas e dias da semana em português.
 - Cards com total de folgas, dia com mais folgas e quantidade de funcionários.
 - Seleção dos funcionários de folga em um diálogo aberto pelo clique no dia.
@@ -55,9 +56,10 @@ O arquivo `data/escala.db` contém os dados reais e não é versionado pelo Git.
 
 1. Abra **Funcionários** para manter a lista de pessoas e, opcionalmente, definir a folga semanal padrão.
 2. Em **Escala**, escolha mês e ano ou use as setas para navegar.
-3. Clique em um dia do calendário, marque os funcionários de folga e selecione **Salvar**. Funcionários que já possuem férias, atestado ou falta aparecem protegidos contra alteração acidental.
-4. Use **Copiar mês anterior** para substituir o mês atual pelas ocorrências do mês anterior.
-5. Use **Imprimir** para abrir a pré-visualização. O botão de impressão da prévia abre a seleção nativa de impressora.
+3. Em **Afastamentos**, cadastre períodos de férias ou atestado. Cada período pode ter um único dia e também pode atravessar meses ou anos.
+4. Clique em um dia do calendário, marque os funcionários de folga e selecione **Salvar**. Funcionários afastados aparecem bloqueados e devem ser alterados pela aba **Afastamentos**.
+5. Use **Copiar mês anterior** para substituir as ocorrências manuais do mês atual pelas do mês anterior; afastamentos permanecem preservados.
+6. Use **Imprimir** para abrir a pré-visualização. O botão de impressão da prévia abre a seleção nativa de impressora.
 
 Um funcionário com ocorrências não pode ser excluído, evitando registros órfãos. Limpe as ocorrências correspondentes antes de excluí-lo.
 
@@ -69,7 +71,7 @@ As folgas padrão são geradas como `DAY_OFF` sem sobrescrever ocorrências exis
 - **Exportar JSON:** grava funcionários, folgas padrão, ocorrências com suas origens e configurações em um arquivo legível.
 - **Importar JSON:** valida todo o arquivo antes da operação e substitui os dados em uma única transação. Se qualquer etapa falhar, os dados anteriores são preservados.
 
-Backups JSON anteriores à inclusão das folgas padrão continuam compatíveis: dias padrão ausentes são interpretados como `Nenhuma` e origens ausentes como `MANUAL`.
+Backups JSON anteriores à inclusão das folgas padrão e dos afastamentos continuam compatíveis: dias padrão ausentes são interpretados como `Nenhuma`, origens ausentes como `MANUAL` e a lista de afastamentos ausente como vazia.
 
 Importar JSON substitui todos os dados atuais; crie um backup antes quando necessário.
 

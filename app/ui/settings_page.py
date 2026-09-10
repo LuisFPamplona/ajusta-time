@@ -73,7 +73,10 @@ class SettingsPage(QWidget):
         backup_group = QGroupBox("Backup e restauração")
         backup_layout = QVBoxLayout(backup_group)
         backup_layout.addWidget(
-            QLabel("O backup inclui funcionários, ocorrências e configurações.")
+            QLabel(
+                "O backup inclui funcionários, afastamentos, ocorrências e "
+                "configurações."
+            )
         )
         backup_layout.addLayout(backup_buttons)
 

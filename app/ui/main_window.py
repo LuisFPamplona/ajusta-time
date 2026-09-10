@@ -5,14 +5,17 @@ from PySide6.QtWidgets import QMainWindow, QTabWidget
 
 from app.database.connection import Database
 from app.database.repositories.employee_repository import EmployeeRepository
+from app.database.repositories.leave_repository import LeaveRepository
 from app.database.repositories.schedule_repository import ScheduleRepository
 from app.database.repositories.settings_repository import SettingsRepository
 from app.services.backup_service import BackupService
 from app.services.employee_service import EmployeeService
+from app.services.leave_service import LeaveService
 from app.services.print_service import PrintService
 from app.services.schedule_service import ScheduleService
 from app.ui.employees_page import EmployeesPage
 from app.ui.icons import line_icon
+from app.ui.leaves_page import LeavesPage
 from app.ui.schedule_page import SchedulePage
 from app.ui.settings_page import SettingsPage
 from app.ui.theme import COLORS
@@ -27,6 +30,7 @@ class MainWindow(QMainWindow):
 
         employee_service = EmployeeService(EmployeeRepository(database))
         schedule_service = ScheduleService(ScheduleRepository(database))
+        leave_service = LeaveService(LeaveRepository(database))
         settings_repository = SettingsRepository(database)
 
         self.schedule_page = SchedulePage(
@@ -36,9 +40,12 @@ class MainWindow(QMainWindow):
             PrintService(),
         )
         self.employees_page = EmployeesPage(employee_service)
+        self.leaves_page = LeavesPage(employee_service, leave_service)
         self.settings_page = SettingsPage(settings_repository, BackupService(database))
 
         self.employees_page.employees_changed.connect(self.schedule_page.reload)
+        self.employees_page.employees_changed.connect(self.leaves_page.reload)
+        self.leaves_page.leaves_changed.connect(self.schedule_page.reload)
         self.settings_page.data_imported.connect(self._reload_all)
 
         tabs = QTabWidget()
@@ -55,6 +62,11 @@ class MainWindow(QMainWindow):
             "Funcionários",
         )
         tabs.addTab(
+            self.leaves_page,
+            line_icon("leave"),
+            "Afastamentos",
+        )
+        tabs.addTab(
             self.settings_page,
             line_icon("settings"),
             "Configurações",
@@ -64,5 +76,6 @@ class MainWindow(QMainWindow):
 
     def _reload_all(self) -> None:
         self.employees_page.reload()
+        self.leaves_page.reload()
         self.schedule_page.reload()
         self.settings_page.reload()

@@ -5,6 +5,7 @@ from datetime import date, datetime
 from pathlib import Path
 
 from app.database.connection import Database
+from app.database.repositories.leave_repository import VALID_LEAVE_TYPES
 from app.database.repositories.schedule_repository import VALID_SOURCES, VALID_STATUSES
 
 
@@ -13,7 +14,8 @@ class BackupValidationError(ValueError):
 
 
 class BackupService:
-    FORMAT_VERSION = 1
+    FORMAT_VERSION = 2
+    SUPPORTED_VERSIONS = frozenset({1, 2})
 
     def __init__(self, database: Database) -> None:
         self.database = database
@@ -34,11 +36,22 @@ class BackupService:
                     """
                 ).fetchall()
             ]
+            leave_periods = [
+                dict(row)
+                for row in connection.execute(
+                    """
+                    SELECT id, employee_id, type, start_date, end_date, notes
+                    FROM leave_periods ORDER BY id
+                    """
+                ).fetchall()
+            ]
             entries = [
                 dict(row)
                 for row in connection.execute(
                     """
-                    SELECT id, employee_id, date, status, source, notes
+                    SELECT
+                        id, employee_id, date, status, source, notes,
+                        leave_period_id
                     FROM schedule_entries ORDER BY id
                     """
                 ).fetchall()
@@ -55,6 +68,7 @@ class BackupService:
             "version": self.FORMAT_VERSION,
             "exported_at": datetime.now().astimezone().isoformat(timespec="seconds"),
             "employees": employees,
+            "leave_periods": leave_periods,
             "schedule_entries": entries,
             "settings": settings,
         }
@@ -69,9 +83,12 @@ class BackupService:
         except (OSError, UnicodeError, json.JSONDecodeError) as error:
             raise BackupValidationError("O arquivo JSON não pôde ser lido.") from error
 
-        employees, entries, settings = self._validate_payload(raw_payload)
+        employees, leave_periods, entries, settings = self._validate_payload(
+            raw_payload
+        )
         with self.database.transaction() as connection:
             connection.execute("DELETE FROM schedule_entries")
+            connection.execute("DELETE FROM leave_periods")
             connection.execute("DELETE FROM employees")
             connection.execute("DELETE FROM settings")
             connection.executemany(
@@ -86,10 +103,29 @@ class BackupService:
             )
             connection.executemany(
                 """
-                INSERT INTO schedule_entries(
-                    id, employee_id, date, status, source, notes
+                INSERT INTO leave_periods(
+                    id, employee_id, type, start_date, end_date, notes
                 )
                 VALUES (?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    (
+                        item["id"],
+                        item["employee_id"],
+                        item["type"],
+                        item["start_date"],
+                        item["end_date"],
+                        item["notes"],
+                    )
+                    for item in leave_periods
+                ),
+            )
+            connection.executemany(
+                """
+                INSERT INTO schedule_entries(
+                    id, employee_id, date, status, source, notes, leave_period_id
+                )
+                VALUES (?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     (
@@ -99,6 +135,7 @@ class BackupService:
                         item["status"],
                         item["source"],
                         item["notes"],
+                        item["leave_period_id"],
                     )
                     for item in entries
                 ),
@@ -116,18 +153,28 @@ class BackupService:
 
     def _validate_payload(
         self, payload: object
-    ) -> tuple[list[dict[str, object]], list[dict[str, object]], dict[str, str]]:
+    ) -> tuple[
+        list[dict[str, object]],
+        list[dict[str, object]],
+        list[dict[str, object]],
+        dict[str, str],
+    ]:
         if not isinstance(payload, dict):
             raise BackupValidationError("A raiz do backup deve ser um objeto JSON.")
         if payload.get("format") != "ajusta-time-backup":
             raise BackupValidationError("O arquivo não é um backup do Ajusta Time.")
-        if payload.get("version") != self.FORMAT_VERSION:
+        if payload.get("version") not in self.SUPPORTED_VERSIONS:
             raise BackupValidationError("Versão de backup não suportada.")
 
         employees_raw = payload.get("employees")
+        leave_periods_raw = payload.get("leave_periods", [])
         entries_raw = payload.get("schedule_entries")
         settings_raw = payload.get("settings")
-        if not isinstance(employees_raw, list) or not isinstance(entries_raw, list):
+        if (
+            not isinstance(employees_raw, list)
+            or not isinstance(leave_periods_raw, list)
+            or not isinstance(entries_raw, list)
+        ):
             raise BackupValidationError("Funcionários ou ocorrências inválidos.")
         if not isinstance(settings_raw, dict):
             raise BackupValidationError("Configurações inválidas.")
@@ -165,6 +212,63 @@ class BackupService:
                 }
             )
 
+        leave_periods: list[dict[str, object]] = []
+        leave_ids: set[int] = set()
+        employee_periods: dict[int, list[tuple[date, date]]] = {}
+        for item in leave_periods_raw:
+            if not isinstance(item, dict):
+                raise BackupValidationError("Registro de afastamento inválido.")
+            leave_id = item.get("id")
+            employee_id = item.get("employee_id")
+            leave_type = item.get("type")
+            start_date = item.get("start_date")
+            end_date = item.get("end_date")
+            notes = item.get("notes")
+            if (
+                not isinstance(leave_id, int)
+                or isinstance(leave_id, bool)
+                or leave_id <= 0
+                or leave_id in leave_ids
+                or not isinstance(employee_id, int)
+                or isinstance(employee_id, bool)
+                or employee_id not in employee_ids
+                or leave_type not in VALID_LEAVE_TYPES
+                or not isinstance(start_date, str)
+                or not isinstance(end_date, str)
+                or (notes is not None and not isinstance(notes, str))
+            ):
+                raise BackupValidationError("Registro de afastamento inválido.")
+            try:
+                parsed_start = date.fromisoformat(start_date)
+                parsed_end = date.fromisoformat(end_date)
+            except ValueError as error:
+                raise BackupValidationError("Data de afastamento inválida.") from error
+            if (
+                parsed_start.isoformat() != start_date
+                or parsed_end.isoformat() != end_date
+                or parsed_start > parsed_end
+            ):
+                raise BackupValidationError("Período de afastamento inválido.")
+            periods = employee_periods.setdefault(employee_id, [])
+            if any(
+                parsed_start <= existing_end and parsed_end >= existing_start
+                for existing_start, existing_end in periods
+            ):
+                raise BackupValidationError("Há afastamentos sobrepostos no backup.")
+            periods.append((parsed_start, parsed_end))
+            leave_ids.add(leave_id)
+            leave_periods.append(
+                {
+                    "id": leave_id,
+                    "employee_id": employee_id,
+                    "type": leave_type,
+                    "start_date": start_date,
+                    "end_date": end_date,
+                    "notes": notes,
+                }
+            )
+
+        leave_by_id = {item["id"]: item for item in leave_periods}
         entries: list[dict[str, object]] = []
         entry_ids: set[int] = set()
         employee_dates: set[tuple[int, str]] = set()
@@ -177,6 +281,7 @@ class BackupService:
             status = item.get("status")
             source = item.get("source", "MANUAL")
             notes = item.get("notes")
+            leave_period_id = item.get("leave_period_id")
             if (
                 not isinstance(entry_id, int)
                 or isinstance(entry_id, bool)
@@ -192,6 +297,16 @@ class BackupService:
                 or source not in VALID_SOURCES
                 or (source == "DEFAULT" and status != "DAY_OFF")
                 or (status == "WORK_OVERRIDE" and source != "MANUAL")
+                or (
+                    source == "LEAVE"
+                    and (
+                        not isinstance(leave_period_id, int)
+                        or isinstance(leave_period_id, bool)
+                        or leave_period_id not in leave_ids
+                        or status not in VALID_LEAVE_TYPES
+                    )
+                )
+                or (source != "LEAVE" and leave_period_id is not None)
                 or (notes is not None and not isinstance(notes, str))
             ):
                 raise BackupValidationError("Registro de escala inválido.")
@@ -204,6 +319,16 @@ class BackupService:
             unique_key = (employee_id, entry_date)
             if unique_key in employee_dates:
                 raise BackupValidationError("Há ocorrências duplicadas no backup.")
+            if source == "LEAVE":
+                period = leave_by_id[leave_period_id]
+                if (
+                    period["employee_id"] != employee_id
+                    or period["type"] != status
+                    or not period["start_date"] <= entry_date <= period["end_date"]
+                ):
+                    raise BackupValidationError(
+                        "Ocorrência incompatível com o afastamento."
+                    )
             entry_ids.add(entry_id)
             employee_dates.add(unique_key)
             entries.append(
@@ -214,12 +339,28 @@ class BackupService:
                     "status": status,
                     "source": source,
                     "notes": notes,
+                    "leave_period_id": leave_period_id,
                 }
             )
+
+        leave_entries = {
+            (item["leave_period_id"], item["date"])
+            for item in entries
+            if item["source"] == "LEAVE"
+        }
+        for period in leave_periods:
+            current = date.fromisoformat(period["start_date"])
+            end = date.fromisoformat(period["end_date"])
+            while current <= end:
+                if (period["id"], current.isoformat()) not in leave_entries:
+                    raise BackupValidationError(
+                        "O afastamento não possui todas as ocorrências diárias."
+                    )
+                current = date.fromordinal(current.toordinal() + 1)
 
         settings: dict[str, str] = {}
         for key, value in settings_raw.items():
             if not isinstance(key, str) or not isinstance(value, str):
                 raise BackupValidationError("Configuração inválida.")
             settings[key] = value
-        return employees, entries, settings
+        return employees, leave_periods, entries, settings

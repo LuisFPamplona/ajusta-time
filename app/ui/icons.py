@@ -43,6 +43,12 @@ def line_icon(name: str, color: str | None = None, size: int = 22) -> QIcon:
     elif name == "copy":
         painter.drawRoundedRect(QRectF(7, 7, 11, 12), 1.5, 1.5)
         painter.drawRoundedRect(QRectF(3.5, 3, 11, 12), 1.5, 1.5)
+    elif name == "leave":
+        painter.drawRoundedRect(QRectF(4, 3, 14, 16), 2, 2)
+        painter.drawLine(QPointF(8, 3), QPointF(8, 6))
+        painter.drawLine(QPointF(14, 3), QPointF(14, 6))
+        painter.drawLine(QPointF(7.5, 11), QPointF(14.5, 11))
+        painter.drawLine(QPointF(11, 7.5), QPointF(11, 14.5))
     elif name == "print":
         painter.drawRect(QRectF(6, 2.5, 10, 6))
         painter.drawRoundedRect(QRectF(3, 7.5, 16, 9), 2, 2)

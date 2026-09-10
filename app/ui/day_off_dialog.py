@@ -40,8 +40,8 @@ class DayOffDialog(QDialog):
         title.setObjectName("pageTitle")
         title.setWordWrap(True)
         subtitle = QLabel(
-            "Marque os funcionários que estarão de folga. "
-            "Outras ocorrências são preservadas."
+            "Marque os funcionários que estarão de folga. Férias e atestados "
+            "aparecem bloqueados e são gerenciados em Afastamentos."
         )
         subtitle.setObjectName("pageSubtitle")
         subtitle.setWordWrap(True)
@@ -77,11 +77,18 @@ class DayOffDialog(QDialog):
                 )
                 item.setCheckState(Qt.CheckState.Unchecked)
             elif status:
-                item.setText(f"{employee.name} — {STATUS_NAMES[status]} (preservado)")
+                suffix = (
+                    STATUS_NAMES[status]
+                    if entry and entry.source == "LEAVE"
+                    else f"{STATUS_NAMES[status]} (preservado)"
+                )
+                item.setText(f"{employee.name} — {suffix}")
                 item.setFlags(Qt.ItemFlag.ItemIsUserCheckable)
                 item.setCheckState(Qt.CheckState.Unchecked)
                 item.setToolTip(
-                    "Este funcionário já possui outra ocorrência nesta data."
+                    "Gerencie este período pela aba Afastamentos."
+                    if entry and entry.source == "LEAVE"
+                    else "Este funcionário já possui outra ocorrência nesta data."
                 )
             else:
                 item.setFlags(

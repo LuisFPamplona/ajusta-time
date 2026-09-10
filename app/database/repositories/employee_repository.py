@@ -91,7 +91,8 @@ class EmployeeRepository:
                     raise LookupError("Funcionário não encontrado.")
         except sqlite3.IntegrityError as error:
             raise EmployeeHasScheduleError(
-                "Este funcionário possui registros de escala e não pode ser excluído."
+                "Este funcionário possui afastamentos ou registros de escala e não "
+                "pode ser excluído."
             ) from error
 
 

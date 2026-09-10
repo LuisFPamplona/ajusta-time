@@ -16,6 +16,7 @@ from PySide6.QtWidgets import (
 )
 
 from app.ui.icons import line_icon
+from app.ui.theme import COLORS
 
 WEEKDAY_NAMES = (
     "Segunda",
@@ -37,9 +38,9 @@ class SummaryCard(QFrame):
         self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
 
         tone_colors = {
-            "blue": "#1769e8",
-            "red": "#d12c3b",
-            "green": "#249b56",
+            "blue": COLORS.primary,
+            "red": COLORS.danger,
+            "green": COLORS.success,
         }
         marker_label = QLabel()
         marker_label.setObjectName("cardMarker")

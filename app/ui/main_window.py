@@ -15,7 +15,7 @@ from app.ui.employees_page import EmployeesPage
 from app.ui.icons import line_icon
 from app.ui.schedule_page import SchedulePage
 from app.ui.settings_page import SettingsPage
-from app.ui.theme import APP_STYLE_SHEET
+from app.ui.theme import COLORS
 
 
 class MainWindow(QMainWindow):
@@ -24,7 +24,6 @@ class MainWindow(QMainWindow):
         self.setWindowTitle("Ajusta Time")
         self.resize(1366, 820)
         self.setMinimumSize(1050, 700)
-        self.setStyleSheet(APP_STYLE_SHEET)
 
         employee_service = EmployeeService(EmployeeRepository(database))
         schedule_service = ScheduleService(ScheduleRepository(database))
@@ -47,7 +46,7 @@ class MainWindow(QMainWindow):
         tabs.setIconSize(QSize(20, 20))
         tabs.addTab(
             self.schedule_page,
-            line_icon("calendar", "#1769e8"),
+            line_icon("calendar", COLORS.primary),
             "Escala",
         )
         tabs.addTab(

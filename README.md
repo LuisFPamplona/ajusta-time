@@ -91,6 +91,11 @@ tests/
 
 A interface não executa SQL. Repositórios concentram o acesso ao banco, serviços aplicam as regras e as telas cuidam da interação com o usuário.
 
+A paleta visual é centralizada em `app/ui/theme.py`. Novos componentes devem usar
+os tokens de `COLORS` e os papéis de `QPalette`, evitando cores locais ou herdadas
+do tema do sistema operacional. O tema é aplicado ao `QApplication`, inclusive em
+menus, listas suspensas, dicas e outras janelas auxiliares do Qt.
+
 ## Testes
 
 ```bash

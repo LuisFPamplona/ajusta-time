@@ -5,8 +5,11 @@ import math
 from PySide6.QtCore import QPointF, QRectF, Qt
 from PySide6.QtGui import QColor, QIcon, QPainter, QPen, QPixmap
 
+from app.ui.theme import COLORS
 
-def line_icon(name: str, color: str = "#526078", size: int = 22) -> QIcon:
+
+def line_icon(name: str, color: str | None = None, size: int = 22) -> QIcon:
+    color = color or COLORS.text_muted
     pixmap = QPixmap(size, size)
     pixmap.fill(Qt.GlobalColor.transparent)
     painter = QPainter(pixmap)
@@ -44,7 +47,7 @@ def line_icon(name: str, color: str = "#526078", size: int = 22) -> QIcon:
         painter.drawRect(QRectF(6, 2.5, 10, 6))
         painter.drawRoundedRect(QRectF(3, 7.5, 16, 9), 2, 2)
         painter.fillRect(QRectF(6, 13, 10, 6.5), QColor(color))
-        painter.setPen(QPen(QColor("#ffffff"), 1.2))
+        painter.setPen(QPen(QColor(COLORS.surface), 1.2))
         painter.drawRect(QRectF(7.5, 14.5, 7, 3.5))
 
     painter.end()

@@ -8,12 +8,14 @@ from app.database.connection import Database
 from app.database.schema import initialize_database
 from app.paths import database_path
 from app.ui.main_window import MainWindow
+from app.ui.theme import apply_app_theme
 
 
 def main() -> int:
     app = QApplication(sys.argv)
     app.setApplicationName("Ajusta Time")
     app.setOrganizationName("Ajusta Time")
+    apply_app_theme(app)
 
     try:
         database = Database(database_path())

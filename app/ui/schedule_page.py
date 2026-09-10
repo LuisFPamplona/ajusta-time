@@ -26,6 +26,7 @@ from app.services.schedule_service import ScheduleService
 from app.ui.day_off_dialog import DayOffDialog
 from app.ui.icons import line_icon
 from app.ui.schedule_calendar import ScheduleCalendarWidget, SummaryCard
+from app.ui.theme import COLORS
 
 MONTH_NAMES = (
     "Janeiro",
@@ -78,7 +79,7 @@ class SchedulePage(QWidget):
         copy_button.setIcon(line_icon("copy"))
         print_button = QPushButton("Imprimir")
         print_button.setObjectName("primaryButton")
-        print_button.setIcon(line_icon("print", "#ffffff"))
+        print_button.setIcon(line_icon("print", COLORS.surface))
         copy_button.clicked.connect(self.copy_previous_month)
         print_button.clicked.connect(self.print_schedule)
         actions = QHBoxLayout()
@@ -137,8 +138,10 @@ class SchedulePage(QWidget):
         self.calendar.day_clicked.connect(self.open_day)
 
         count_legend = QLabel(
-            '<span style="color:#1769e8">●</span>&nbsp; 1 ou mais de folga'
-            '&nbsp;&nbsp;&nbsp;&nbsp; <span style="color:#c92333">●</span>&nbsp; '
+            f'<span style="color:{COLORS.primary}">●</span>&nbsp; '
+            "1 ou mais de folga"
+            f'&nbsp;&nbsp;&nbsp;&nbsp; <span style="color:{COLORS.danger}">●</span>'
+            "&nbsp; "
             "Maior número de folgas no mês"
         )
         count_legend.setObjectName("legend")
